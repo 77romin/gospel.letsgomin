@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 const audio = $('audio');
 const names = { choir: ['합창', 'CHOIR'], soprano: ['소프라노', 'SOPRANO'], alto: ['알토', 'ALTO'], tenor: ['테너', 'TENOR'], baritone: ['바리톤', 'BARITONE'] };
 let part = localStorage.getItem('gospel-part') || 'choir';
+let mode = localStorage.getItem('gospel-mode') || 'shared';
 if (!names[part]) part = 'choir';
 let state = null;
 let socket = null;
@@ -26,6 +27,8 @@ function showToast(message) {
   const box = $('toast'); box.textContent = message; box.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => box.classList.remove('show'), 3500);
 }
+function isSolo() { return mode === 'solo'; }
+function displayedPosition() { return isSolo() && Number.isFinite(audio.currentTime) ? audio.currentTime : projectedPosition(); }
 function projectedPosition() {
   if (!state) return 0;
   const t = state.transport;
@@ -99,6 +102,7 @@ async function beginAudio() {
   } catch { showToast('소리를 들으려면 ‘연습 참여’를 다시 눌러 주세요.'); }
 }
 function syncAudio() {
+  if (isSolo()) return;
   const sourceChanged = prepareAudio();
   if (!state) return;
   const t = state.transport;
@@ -125,6 +129,7 @@ function syncAudio() {
 function render() {
   if (!state) return;
   const conductor = state.role === 'conductor';
+  const solo = isSolo();
   $('songTitle').textContent = state.title;
   $('heroTitle').textContent = state.title;
   $('rolePill').textContent = conductor ? '✦ 지휘자 모드' : '● 청취자 모드';
@@ -132,9 +137,11 @@ function render() {
   $('loginOpen').classList.toggle('hidden', conductor);
   $('logout').classList.toggle('hidden', !conductor);
   $('adminPanel').classList.toggle('hidden', !conductor);
-  $('listenerNotice').classList.toggle('hidden', conductor);
-  for (const element of document.querySelectorAll('.conductor-only')) element.classList.toggle('hidden', !conductor);
-  $('timeline').classList.toggle('can-seek', conductor);
+  $('listenerNotice').classList.toggle('hidden', conductor || solo);
+  for (const element of document.querySelectorAll('.conductor-only')) element.classList.toggle('hidden', !conductor && !solo);
+  $('timeline').classList.toggle('can-seek', conductor || solo);
+  $('sharedMode').classList.toggle('active', !solo);
+  $('soloMode').classList.toggle('active', solo);
   const selected = names[part];
   $('partName').innerHTML = `${selected[0]} <span>${selected[1]}</span>`;
   for (const tab of document.querySelectorAll('.part-tab')) {
@@ -145,8 +152,8 @@ function render() {
   const track = state.tracks[part];
   $('trackStatus').textContent = track ? '● 음원 준비 완료' : '음원 준비 전';
   $('trackStatus').classList.toggle('ready', !!track);
-  $('playBtn').textContent = state.transport.playing ? 'Ⅱ' : '▶';
-  $('playBtn').setAttribute('aria-label', state.transport.playing ? '일시정지' : '재생');
+  $('playBtn').textContent = solo ? (audio.paused ? '▶' : 'Ⅱ') : (state.transport.playing ? 'Ⅱ' : '▶');
+  $('playBtn').setAttribute('aria-label', solo ? (audio.paused ? '재생' : '일시정지') : (state.transport.playing ? '일시정지' : '재생'));
   $('joinBtn').textContent = joined ? '✓  연습 참여 중' : '♫  연습 참여';
   $('joinBtn').classList.toggle('joined', joined);
   $('segmentCount').textContent = `${state.segments.length}개 구간`;
@@ -191,7 +198,7 @@ function renderTimeline() {
 }
 function tick() {
   if (!state) return;
-  const pos = projectedPosition(); const duration = timelineDuration();
+  const pos = displayedPosition(); const duration = timelineDuration();
   const pct = Math.max(0, Math.min(100, pos / duration * 100));
   $('timelineProgress').style.width = `${pct}%`; $('timelineThumb').style.left = `${pct}%`;
   $('currentTime').textContent = formatTime(pos);
@@ -202,6 +209,9 @@ function tick() {
   }
 }
 
+$('sharedMode').addEventListener('click', () => setMode('shared'));
+$('soloMode').addEventListener('click', () => setMode('solo'));
+function setMode(nextMode) { if (mode === nextMode) return; const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing; const position = isSolo() ? audio.currentTime : projectedPosition(); mode = nextMode; localStorage.setItem('gospel-mode', mode); audio.pause(); if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} } render(); if (mode === 'solo' && joined && wasPlaying) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.')); else if (mode === 'shared') syncAudio(); }
 document.querySelectorAll('.part-tab').forEach(tab => tab.addEventListener('click', () => {
   part = tab.dataset.part; localStorage.setItem('gospel-part', part); render(); syncAudio();
   if (!state?.tracks?.[part]) showToast('이 파트의 음원이 아직 없습니다.');
@@ -231,17 +241,17 @@ $('volumeControl').addEventListener('input', event => {
   audio.volume = Number(event.target.value);
   $('volumeValue').textContent = Math.round(audio.volume * 100) + '%';
 });
-$('playBtn').addEventListener('click', () => send({ type: state?.transport.playing ? 'pause' : 'play' }));
-$('backBtn').addEventListener('click', () => send({ type: 'seek', positionSec: Math.max(0, projectedPosition() - 10) }));
-$('forwardBtn').addEventListener('click', () => send({ type: 'seek', positionSec: Math.min(timelineDuration(), projectedPosition() + 10) }));
+$('playBtn').addEventListener('click', async () => { if (isSolo()) { if (!joined) return showToast('먼저 연습 참여를 눌러 주세요.'); try { if (audio.paused) await audio.play(); else audio.pause(); render(); } catch { showToast('소리를 들으려면 연습 참여를 눌러 주세요.'); } } else send({ type: state?.transport.playing ? 'pause' : 'play' }); });
+$('backBtn').addEventListener('click', () => { const position = Math.max(0, displayedPosition() - 10); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position }); });
+$('forwardBtn').addEventListener('click', () => { const position = Math.min(timelineDuration(), displayedPosition() + 10); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position }); });
 $('timeline').addEventListener('click', event => {
-  if (state?.role !== 'conductor') return;
+  if (state?.role !== 'conductor' && !isSolo()) return;
   const rect = $('timeline').getBoundingClientRect();
-  send({ type: 'seek', positionSec: Math.max(0, Math.min(timelineDuration(), (event.clientX - rect.left) / rect.width * timelineDuration())) });
+  const position = Math.max(0, Math.min(timelineDuration(), (event.clientX - rect.left) / rect.width * timelineDuration())); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position });
 });
 $('timeline').addEventListener('keydown', event => {
-  if (state?.role !== 'conductor' || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-  event.preventDefault(); send({ type: 'seek', positionSec: Math.max(0, Math.min(timelineDuration(), projectedPosition() + (event.key === 'ArrowRight' ? 5 : -5))) });
+  if ((state?.role !== 'conductor' && !isSolo()) || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+  event.preventDefault(); const position = Math.max(0, Math.min(timelineDuration(), displayedPosition() + (event.key === 'ArrowRight' ? 5 : -5))); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position });
 });
 audio.addEventListener('loadedmetadata', () => { renderTimeline(); tick(); if (state?.transport.playing && joined) syncAudio(); });
 $('loginOpen').addEventListener('click', () => $('loginDialog').showModal());
