@@ -17,6 +17,7 @@ let videoOpen = false;
 let endingRequested = false;
 let pendingStartAlignment = null;
 let pendingSeekAlignment = null;
+let catchUpAlignment = null;
 const syncDebug = new URLSearchParams(location.search).has('syncDebug');
 let lastMediaEvent = 'none';
 let syncDebugBox = null;
@@ -74,6 +75,35 @@ function projectedPosition() {
   if (!state) return 0;
   const t = state.transport;
   return t.playing ? Math.max(0, t.positionSec + Math.max(0, Date.now() + offsetMs - t.startAtMs) / 1000) : t.positionSec;
+}
+function stopCatchUp() {
+  catchUpAlignment = null;
+  if (audio.playbackRate !== 1) audio.playbackRate = 1;
+}
+function startCatchUp(revision, file) {
+  if (!cloud || !joined || isSolo() || !state?.transport.playing) return;
+  catchUpAlignment = { revision, file, untilMs: Date.now() + 10000, stableSinceMs: null };
+  updateCatchUp();
+}
+function updateCatchUp() {
+  const alignment = catchUpAlignment;
+  if (!alignment) return;
+  if (!cloud || !joined || isSolo() || audio.paused ||
+      !state?.transport.playing || alignment.revision !== state.transport.revision ||
+      alignment.file !== sourceFile || Date.now() > alignment.untilMs) {
+    stopCatchUp();
+    return;
+  }
+  if (audio.seeking) return;
+  const lag = projectedPosition() - audio.currentTime;
+  if (lag < 0.08) {
+    if (audio.playbackRate !== 1) audio.playbackRate = 1;
+    if (alignment.stableSinceMs === null) alignment.stableSinceMs = Date.now();
+    else if (Date.now() - alignment.stableSinceMs > 1500) stopCatchUp();
+  } else {
+    alignment.stableSinceMs = null;
+    if (lag > 0.18 && audio.playbackRate !== 1.35) audio.playbackRate = 1.35;
+  }
 }
 function send(message) {
   if (cloud) return cloud.send(message).catch(error => showToast(error.message));
@@ -182,6 +212,7 @@ function syncAudio() {
   if (!joined || !sourceFile || !t.playing || (cloud && !state.conductorParticipating)) {
     pendingStartAlignment = null;
     pendingSeekAlignment = null;
+    stopCatchUp();
     clearTimeout(startTimer);
     if (!audio.paused) audio.pause();
     if (sourceFile && audio.readyState >= 1 && !t.playing && (t.revision !== lastRevision || sourceChanged)) {
@@ -192,6 +223,7 @@ function syncAudio() {
   }
   if (t.revision !== lastRevision || sourceChanged) {
     clearTimeout(startTimer);
+    stopCatchUp();
     audio.pause();
     const delay = t.startAtMs - (Date.now() + offsetMs);
     if (delay > 20) {
@@ -395,19 +427,18 @@ audio.addEventListener('playing', () => {
       pendingSeekAlignment = { revision: pending.revision, file: pending.file };
       audio.currentTime = expected;
     } catch { pendingSeekAlignment = null; }
-  }
+  } else startCatchUp(pending.revision, pending.file);
 });
 audio.addEventListener('seeked', () => {
   const pending = pendingSeekAlignment;
   if (!pending || !cloud || !joined || isSolo() || !state?.transport.playing ||
       pending.revision !== state.transport.revision || pending.file !== sourceFile) return;
   pendingSeekAlignment = null;
-  // The first mobile seek can itself take time. Catch up once after it ends.
-  const expected = Math.min(timelineDuration(), projectedPosition());
-  if (expected - audio.currentTime > 0.25) {
-    try { audio.currentTime = expected; } catch {}
-  }
+  // A second seek also takes time on mobile. Close the remaining gap locally.
+  startCatchUp(pending.revision, pending.file);
 });
+audio.addEventListener('timeupdate', updateCatchUp);
+audio.addEventListener('pause', stopCatchUp);
 if (syncDebug) {
   syncDebugBox = document.createElement('pre');
   syncDebugBox.setAttribute('aria-label', '재생 동기화 진단');
