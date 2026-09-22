@@ -18,6 +18,7 @@ let toastTimer = null;
 let videoOpen = false;
 let endingRequested = false;
 let pendingStartAlignment = null;
+let lastStartTiming = null;
 const syncDebug = new URLSearchParams(location.search).has('syncDebug');
 let lastMediaEvent = 'none';
 let syncDebugBox = null;
@@ -185,6 +186,8 @@ async function beginAudio(expectedRevision = state?.transport.revision, expected
       countdownUntilMs = null;
       render();
       try {
+        lastStartTiming = { revision: expectedRevision, scheduledAtMs,
+          requestedAtMs: Date.now() + offsetMs, playingAtMs: null };
         if (cloud && !isSolo()) pendingStartAlignment = { revision: expectedRevision, file: expectedFile };
         await audio.play();
         if (!stillCurrent()) audio.pause();
@@ -341,7 +344,9 @@ function tick() {
   $('timeline').setAttribute('aria-valuemax', String(Math.floor(duration)));
   if (syncDebug && syncDebugBox) {
     const difference = audio.currentTime - pos;
-    syncDebugBox.textContent = `서버 기준 ${pos.toFixed(2)}초\n이 기기 음원 ${audio.currentTime.toFixed(2)}초\n차이 ${difference.toFixed(2)}초\n재생 속도 ${audio.playbackRate.toFixed(2)}x\n상태 ${audio.paused ? '정지' : '재생'} / ready ${audio.readyState}\n마지막 이벤트 ${lastMediaEvent}\n명령 버전 ${state.transport.revision}\n시계 보정 ${offsetMs.toFixed(0)}ms`;
+    const startDelay = lastStartTiming?.revision === state.transport.revision && lastStartTiming.playingAtMs !== null ?
+      `${Math.round(lastStartTiming.playingAtMs - lastStartTiming.scheduledAtMs)}ms` : '-';
+    syncDebugBox.textContent = `서버 기준 ${pos.toFixed(2)}초\n이 기기 음원 ${audio.currentTime.toFixed(2)}초\n차이 ${difference.toFixed(2)}초\n시작 지연 ${startDelay}\n상태 ${audio.paused ? '정지' : '재생'} / ready ${audio.readyState}\n마지막 이벤트 ${lastMediaEvent}\n명령 버전 ${state.transport.revision}\n시계 보정 ${offsetMs.toFixed(0)}ms`;
   }
 }
 
@@ -412,6 +417,8 @@ document.addEventListener('keydown', event => {
 });
 audio.addEventListener('loadedmetadata', () => { updateVideoDisplay(); renderTimeline(); tick(); if (state?.transport.playing && joined && !isSolo()) syncAudio(); });
 audio.addEventListener('playing', () => {
+  if (lastStartTiming?.revision === state?.transport.revision && lastStartTiming.playingAtMs === null)
+    lastStartTiming.playingAtMs = Date.now() + offsetMs;
   const pending = pendingStartAlignment;
   if (!pending || !cloud || !joined || isSolo() || !state?.transport.playing ||
       pending.revision !== state.transport.revision || pending.file !== sourceFile) return;
