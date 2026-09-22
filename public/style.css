@@ -35,3 +35,8 @@ button.segment-jump:focus-visible{outline:2px solid #315f54;outline-offset:3px}
 .video-toggle:hover:not(:disabled),.video-toggle[aria-expanded="true"]{background:#dcebe3;border-color:#8aafa0}
 .player-controls>.video-toggle{position:absolute;left:0;top:50%;transform:translateY(-50%)}
 @media(max-width:750px){.video-stage{margin-top:20px}.player-panel.video-open .timeline-wrap{margin-top:15px}.video-toggle{padding:8px 10px;font-size:10px}.player-controls{flex-direction:column;padding-top:45px}.player-controls>.video-toggle{top:0;transform:none}.control-group{gap:6px}}
+.player-controls{display:grid;grid-template-columns:minmax(90px,1fr) auto minmax(0,1fr);gap:12px;align-items:center;padding-top:0}
+.player-controls>.video-toggle{position:static;grid-column:1;justify-self:start;transform:none}
+.player-controls>.control-group{grid-column:2;justify-self:center}
+.player-controls>.audio-options{position:static;right:auto;grid-column:3;justify-self:end;flex-direction:row;gap:12px;min-width:0}
+@media(max-width:600px){.player-controls{grid-template-columns:1fr;gap:13px}.player-controls>.video-toggle{grid-column:1;grid-row:1}.player-controls>.control-group{grid-column:1;grid-row:2}.player-controls>.audio-options{grid-column:1;grid-row:3;justify-self:stretch;justify-content:space-between;flex-wrap:wrap;gap:8px}.volume-control input{width:80px}}
