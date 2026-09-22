@@ -146,6 +146,8 @@ function render() {
   $('trackStatus').classList.toggle('ready', !!track);
   $('playBtn').textContent = state.transport.playing ? 'Ⅱ' : '▶';
   $('playBtn').setAttribute('aria-label', state.transport.playing ? '일시정지' : '재생');
+  $('joinBtn').textContent = joined ? '✓  연습 참여 중' : '♫  연습 참여';
+  $('joinBtn').classList.toggle('joined', joined);
   $('segmentCount').textContent = `${state.segments.length}개 구간`;
   renderSegments(); renderTimeline();
 }
@@ -204,7 +206,15 @@ document.querySelectorAll('.part-tab').forEach(tab => tab.addEventListener('clic
   if (!state?.tracks?.[part]) showToast('이 파트의 음원이 아직 없습니다.');
 }));
 $('joinBtn').addEventListener('click', async () => {
-  joined = true; $('joinBtn').textContent = '✓  연습 참여 중'; $('joinBtn').classList.add('joined');
+  if (joined) {
+    joined = false;
+    clearTimeout(startTimer);
+    audio.pause();
+    render();
+    showToast('연습 참여를 해제했습니다. 소리가 꺼졌습니다.');
+    return;
+  }
+  joined = true; render();
   if (sourceFile) {
     if (state?.transport.playing && state.transport.startAtMs <= Date.now() + offsetMs) await beginAudio();
     else {
@@ -215,6 +225,10 @@ $('joinBtn').addEventListener('click', async () => {
     }
   }
   showToast('연습에 참여했습니다. 파트를 선택해 들어 보세요.');
+});
+$('volumeControl').addEventListener('input', event => {
+  audio.volume = Number(event.target.value);
+  $('volumeValue').textContent = Math.round(audio.volume * 100) + '%';
 });
 $('playBtn').addEventListener('click', () => send({ type: state?.transport.playing ? 'pause' : 'play' }));
 $('backBtn').addEventListener('click', () => send({ type: 'seek', positionSec: Math.max(0, projectedPosition() - 10) }));
