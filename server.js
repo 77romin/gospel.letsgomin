@@ -18,6 +18,7 @@ const password = process.env.CONDUCTOR_PASSWORD || crypto.randomBytes(9).toStrin
 const sessions = new Set();
 const wss = new WebSocketServer({ noServer: true });
 const clients = new Map();
+const activeConductors = new Set();
 
 await fsp.mkdir(dataDir, { recursive: true });
 const catalog = JSON.parse(await fsp.readFile(path.join(publicDir, 'tracks.json'), 'utf8'));
@@ -68,8 +69,13 @@ function secureEqual(a, b) {
 function currentPosition(now = Date.now()) {
   return transport.playing ? transport.positionSec + Math.max(0, (now - transport.startAtMs) / 1000) : transport.positionSec;
 }
+function stopWhenUnattended() {
+  if (activeConductors.size || !transport.playing) return;
+  transport = { playing: false, positionSec: Math.min(roomDuration() ?? Infinity, currentPosition()), startAtMs: null, revision: transport.revision + 1 };
+  scheduleEnd();
+}
 function snapshot(role = 'listener') {
-  return { type: 'state', serverTimeMs: Date.now(), role, title: catalog.title, tracks: catalog.tracks, segments: saved.segments, transport };
+  return { type: 'state', serverTimeMs: Date.now(), role, title: catalog.title, tracks: catalog.tracks, segments: saved.segments, conductorParticipating: activeConductors.size > 0, transport };
 }
 function broadcast() {
   for (const [ws, token] of clients) if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(snapshot(sessions.has(token) ? 'conductor' : 'listener')));
@@ -89,6 +95,14 @@ function readJson(req, limit = 10000) {
   });
 }
 function safeNumber(value, max = 86400) { return Number.isFinite(value) && value >= 0 && value <= max; }
+function segmentFields(msg) {
+  const label = String(msg.label || '').trim();
+  const duration = roomDuration();
+  if (!label || label.length > 40 || !safeNumber(msg.startSec, duration) || !safeNumber(msg.endSec, duration) || msg.endSec <= msg.startSec) throw new Error('구간 이름과 시간을 확인해 주세요.');
+  const color = msg.color === undefined ? '#6b9f8c' : msg.color;
+  if (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color)) throw new Error('구간 색상을 확인해 주세요.');
+  return { label, startSec: msg.startSec, endSec: msg.endSec, color: color.toLowerCase() };
+}
 function mime(file) {
   return ({ '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.webm': 'audio/webm' })[path.extname(file)] || 'application/octet-stream';
 }
@@ -124,7 +138,10 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true }, { 'set-cookie': `choir_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400${req.socket.encrypted ? '; Secure' : ''}` });
     }
     if (url.pathname === '/api/logout' && req.method === 'POST') {
-      sessions.delete(cookies(req).choir_session);
+      const token = cookies(req).choir_session;
+      sessions.delete(token);
+      for (const ws of activeConductors) if (clients.get(ws) === token) activeConductors.delete(ws);
+      stopWhenUnattended();
       broadcast();
       return json(res, 200, { ok: true }, { 'set-cookie': 'choir_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
     }
@@ -147,13 +164,24 @@ server.on('upgrade', (req, socket, head) => {
     const token = cookies(req).choir_session;
     clients.set(ws, token);
     ws.send(JSON.stringify(snapshot(sessions.has(token) ? 'conductor' : 'listener')));
-    ws.on('close', () => clients.delete(ws));
+    ws.on('close', () => {
+      clients.delete(ws);
+      if (activeConductors.delete(ws)) {
+        stopWhenUnattended();
+        broadcast();
+      }
+    });
     ws.on('message', async raw => {
       let msg; try { msg = JSON.parse(raw.toString()); } catch { return; }
       if (!sessions.has(clients.get(ws))) return ws.send(JSON.stringify({ type: 'error', message: '지휘자 권한이 필요합니다.' }));
       try {
         const now = Date.now();
-        if (msg.type === 'play') {
+        if (msg.type === 'participation:set') {
+          if (typeof msg.active !== 'boolean') throw new Error('연습 참여 상태가 올바르지 않습니다.');
+          if (msg.active) activeConductors.add(ws); else activeConductors.delete(ws);
+          stopWhenUnattended();
+        } else if (msg.type === 'play') {
+          if (!activeConductors.has(ws)) throw new Error('먼저 같이 연습에 참여해 주세요.');
           if (!Object.keys(catalog.tracks).length) throw new Error('저장소에 음원을 추가해 주세요.');
           if (transport.playing) return;
           const duration = roomDuration();
@@ -165,9 +193,13 @@ server.on('upgrade', (req, socket, head) => {
           if (!safeNumber(msg.positionSec)) throw new Error('재생 위치가 올바르지 않습니다.');
           transport = { playing: transport.playing, positionSec: msg.positionSec, startAtMs: transport.playing ? now + 1000 : null, revision: transport.revision + 1 };
         } else if (msg.type === 'segment:add') {
-          const label = String(msg.label || '').trim();
-          if (!label || label.length > 40 || !safeNumber(msg.startSec) || !safeNumber(msg.endSec) || msg.endSec <= msg.startSec) throw new Error('구간 이름과 시간을 확인해 주세요.');
-          saved.segments.push({ id: crypto.randomUUID(), label, startSec: msg.startSec, endSec: msg.endSec, highlighted: false, checked: false });
+          saved.segments.push({ id: crypto.randomUUID(), ...segmentFields(msg), highlighted: false, checked: false });
+          saved.segments.sort((a, b) => a.startSec - b.startSec);
+          await persist();
+        } else if (msg.type === 'segment:update') {
+          const segment = saved.segments.find(s => s.id === msg.id);
+          if (!segment) throw new Error('구간을 찾을 수 없습니다.');
+          Object.assign(segment, segmentFields(msg));
           saved.segments.sort((a, b) => a.startSec - b.startSec);
           await persist();
         } else if (msg.type === 'segment:toggle') {

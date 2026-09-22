@@ -41,7 +41,7 @@
             <div class="timeline" id="timeline" role="slider" aria-label="재생 위치" aria-valuemin="0" aria-valuenow="0" tabindex="0">
               <div class="timeline-grid"></div><div class="segment-overlays" id="segmentOverlays"></div><div class="timeline-progress" id="timelineProgress"></div><div class="timeline-thumb" id="timelineThumb"></div>
             </div>
-            <div class="time-row"><span id="currentTime">00:00</span><span class="time-caption" id="syncCaption">모두 같은 위치에서 듣고 있어요</span><span id="duration">00:00</span></div>
+            <div class="time-row"><span id="currentTime">00:00</span><span class="time-caption" id="syncCaption">← → 5초 이동 · ↑ ↓ 내 볼륨 조절</span><span id="duration">00:00</span></div>
           </div>
           <div class="player-controls">
             <div class="control-group"><button class="icon-button conductor-only" id="backBtn" title="10초 뒤로" aria-label="10초 뒤로">↶<small>10</small></button><button class="play-button conductor-only" id="playBtn" aria-label="재생">▶</button><button class="icon-button conductor-only" id="forwardBtn" title="10초 앞으로" aria-label="10초 앞으로">↷<small>10</small></button><span class="listener-notice" id="listenerNotice">재생은 지휘자가 조작합니다</span></div>
@@ -54,7 +54,7 @@
           <aside class="guide-panel"><div class="guide-icon">✧</div><h3>하나의 흐름,<br>각자의 목소리.</h3><p>지휘자가 재생을 시작하면 모두가 같은 시점으로 이동합니다. 탭을 바꾸면 내게 들리는 파트만 바뀝니다.</p><div class="guide-rule"></div><div class="guide-line"><span class="guide-dot gold"></span>지휘자 · 재생과 구간 표시</div><div class="guide-line"><span class="guide-dot mint"></span>청취자 · 파트 선택과 듣기</div></aside>
         </div>
 
-        <section class="admin-panel hidden" id="adminPanel"><div class="panel-heading"><div><span class="section-label">CONDUCTOR DESK</span><h3>연습 구간 설정</h3></div></div><div class="admin-grid"><div class="admin-card"><h4>연습 구간 추가</h4><p class="small-note">예: Pre-verse, Verse, Pre-chorus, Chorus · 음원 파일은 GitHub 저장소에서 관리합니다.</p><form id="segmentForm"><label>구간 이름<input id="segmentLabel" required maxlength="40" placeholder="Verse 1"></label><div class="form-two"><label>시작 <span>분:초</span><input id="segmentStart" required placeholder="00:00" inputmode="numeric"></label><label>끝 <span>분:초</span><input id="segmentEnd" required placeholder="00:30" inputmode="numeric"></label></div><button type="submit" class="wide-button">구간 추가</button></form></div></div></section>
+        <section class="admin-panel hidden" id="adminPanel"><div class="panel-heading"><div><span class="section-label">CONDUCTOR DESK</span><h3>연습 구간 설정</h3></div></div><div class="admin-grid"><div class="admin-card"><h4 id="segmentFormTitle">연습 구간 추가</h4><p class="small-note">음악을 멈춘 뒤 현재 위치를 시작과 종료로 기록하세요.</p><form id="segmentForm"><div class="capture-actions"><div><button type="button" id="captureStart">구간 시작</button><output id="segmentStartTime">미설정</output></div><div><button type="button" id="captureEnd">구간 종료</button><output id="segmentEndTime">미설정</output></div></div><label>구간 이름<input id="segmentLabel" required maxlength="40" placeholder="Verse 1"></label><label class="color-field">구간 색상<input id="segmentColor" type="color" value="#6b9f8c" aria-label="구간 색상"></label><button type="submit" class="wide-button" id="segmentSubmit">구간 추가</button><button type="button" class="cancel-button hidden" id="segmentCancel">수정 취소</button></form></div></div></section>
       </section>
     </main>
     <footer><span>GOSPEL<span class="brand-dot">.</span> LET'S GO MIN</span><span>함께 부르는 찬양, 하나의 시간.</span></footer>

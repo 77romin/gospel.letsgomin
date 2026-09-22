@@ -3,3 +3,23 @@
 @media(max-width:750px){.mode-switch{padding-left:20px;padding-right:20px}.site-shell{padding:0 13px}.topbar{height:72px}.top-actions{gap:9px}.connection{font-size:0}.connection i{width:8px;height:8px}.intro{padding:48px 7px 43px}.intro p{font-size:12px}.studio-heading,.player-panel,.segments-panel,.admin-panel{padding-left:20px;padding-right:20px}.studio-heading{padding-top:26px}.studio-heading h2{font-size:20px}.role-pill{font-size:10px}.part-tab{font-size:10px;padding:14px 2px}.part-tab small{font-size:7px}.tab-icon{font-size:16px}.lower-grid,.admin-grid{grid-template-columns:1fr}.guide-panel{padding:24px 20px}.guide-panel p{max-width:none}.timeline-wrap{margin-top:39px}.timeline-label{font-size:8px}.time-caption{display:none}.player-controls{gap:8px}.audio-options{position:static;flex-direction:column;gap:8px}.listener-notice{font-size:10px}.join-button{font-size:10px;padding:9px}.site-shell footer{font-size:8px;gap:12px}.segment-actions button{font-size:9px;padding:5px}.segment-title{font-size:11px}}
 .admin-grid{grid-template-columns:minmax(0,540px)}
 @media(max-width:750px){.admin-grid{grid-template-columns:minmax(0,1fr)}}
+
+.segment-overlay{opacity:.45}
+.segment-overlay.highlighted{opacity:.85;outline:2px solid #76592e;outline-offset:-2px}
+.segment-overlay.checked{opacity:.22}
+.segment-badge{color:#fff;text-shadow:0 1px 2px #0008}
+.segment-row.highlighted .segment-badge{outline:2px solid #b38d4b}
+.capture-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 0 17px}
+.capture-actions>div{display:flex;flex-direction:column;gap:7px}
+.capture-actions button{border:1px solid #b8d0c7;border-radius:6px;background:#eaf2ed;color:#315f54;padding:11px;font-size:11px;font-weight:700}
+.capture-actions button:hover{background:#dcebe3}
+.capture-actions output{font-size:12px;color:#496d64;font-variant-numeric:tabular-nums;text-align:center}
+.admin-card .color-field{margin-top:13px}
+.admin-card input[type=color]{width:100%;height:38px;padding:3px;cursor:pointer}
+.cancel-button{width:100%;margin-top:8px;border:1px solid #d7dfdb;border-radius:6px;background:#fff;color:#617a73;padding:10px;font-size:11px}
+@media(max-width:750px){.segment-actions{flex-wrap:wrap;justify-content:flex-end}}
+.segment-jump{display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:0;border:0;background:transparent;color:inherit;text-align:left}
+button.segment-jump{cursor:pointer;border-radius:5px}
+button.segment-jump:hover .segment-title{text-decoration:underline}
+button.segment-jump:focus-visible{outline:2px solid #315f54;outline-offset:3px}
+.segment-title,.segment-range{display:block}

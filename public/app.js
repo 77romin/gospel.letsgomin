@@ -13,15 +13,12 @@ let reconnectTimer = null;
 let sourceFile = null;
 let lastRevision = -1;
 let toastTimer = null;
+let segmentDraft = { id: null, startSec: null, endSec: null };
+const defaultSegmentColor = '#6b9f8c';
 
 function formatTime(sec) {
   if (!Number.isFinite(sec) || sec < 0) sec = 0;
   return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
-}
-function parseTime(input) {
-  const text = input.trim();
-  if (/^\d+:\d{1,2}$/.test(text)) { const [m, s] = text.split(':').map(Number); return s < 60 ? m * 60 + s : NaN; }
-  return /^\d+$/.test(text) ? Number(text) : NaN;
 }
 function showToast(message) {
   const box = $('toast'); box.textContent = message; box.classList.add('show');
@@ -29,6 +26,19 @@ function showToast(message) {
 }
 function isSolo() { return mode === 'solo'; }
 function displayedPosition() { return isSolo() && Number.isFinite(audio.currentTime) ? audio.currentTime : projectedPosition(); }
+function segmentColor(segment) { return /^#[0-9a-fA-F]{6}$/.test(segment.color) ? segment.color : defaultSegmentColor; }
+function updateDraftView() {
+  $('segmentStartTime').textContent = segmentDraft.startSec === null ? '미설정' : formatTime(segmentDraft.startSec);
+  $('segmentEndTime').textContent = segmentDraft.endSec === null ? '미설정' : formatTime(segmentDraft.endSec);
+  $('segmentFormTitle').textContent = segmentDraft.id ? '연습 구간 수정' : '연습 구간 추가';
+  $('segmentSubmit').textContent = segmentDraft.id ? '변경 저장' : '구간 추가';
+  $('segmentCancel').classList.toggle('hidden', !segmentDraft.id);
+}
+function resetDraft() {
+  segmentDraft = { id: null, startSec: null, endSec: null };
+  $('segmentForm').reset();
+  updateDraftView();
+}
 function projectedPosition() {
   if (!state) return 0;
   const t = state.transport;
@@ -37,6 +47,11 @@ function projectedPosition() {
 function send(message) {
   if (!socket || socket.readyState !== WebSocket.OPEN) return showToast('서버 연결을 기다려 주세요.');
   socket.send(JSON.stringify(message));
+}
+function syncConductorParticipation() {
+  if (state?.role === 'conductor' && socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'participation:set', active: joined && !isSolo() }));
+  }
 }
 function setConnection(connected) {
   $('connection').classList.toggle('offline', !connected);
@@ -59,6 +74,7 @@ function connect() {
   clearTimeout(reconnectTimer);
   if (socket) socket.close();
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`);
+  let receivedInitialState = false;
   socket = ws;
   ws.addEventListener('open', () => setConnection(true));
   ws.addEventListener('message', event => {
@@ -66,6 +82,7 @@ function connect() {
     if (data.type === 'error') return showToast(data.message);
     if (data.type === 'state') {
       state = data;
+      if (!receivedInitialState) { receivedInitialState = true; syncConductorParticipation(); }
       render();
       syncAudio();
     }
@@ -136,8 +153,10 @@ function render() {
   $('rolePill').classList.toggle('conductor', conductor);
   $('loginOpen').classList.toggle('hidden', conductor);
   $('logout').classList.toggle('hidden', !conductor);
-  $('adminPanel').classList.toggle('hidden', !conductor);
+  $('adminPanel').classList.toggle('hidden', !conductor || solo);
   $('listenerNotice').classList.toggle('hidden', conductor || solo);
+  $('listenerNotice').textContent = state.conductorParticipating ? '재생은 지휘자가 조작합니다' : '지휘자의 연습 참여를 기다립니다';
+  $('syncCaption').textContent = conductor || solo ? '← → 5초 이동 · ↑ ↓ 내 볼륨 조절' : '↑ ↓ 내 볼륨 조절';
   for (const element of document.querySelectorAll('.conductor-only')) element.classList.toggle('hidden', !conductor && !solo);
   $('timeline').classList.toggle('can-seek', conductor || solo);
   $('sharedMode').classList.toggle('active', !solo);
@@ -153,6 +172,7 @@ function render() {
   $('trackStatus').textContent = track ? '● 음원 준비 완료' : '음원 준비 전';
   $('trackStatus').classList.toggle('ready', !!track);
   $('playBtn').textContent = solo ? (audio.paused ? '▶' : 'Ⅱ') : (state.transport.playing ? 'Ⅱ' : '▶');
+  $('playBtn').disabled = conductor && !solo && !joined;
   $('playBtn').setAttribute('aria-label', solo ? (audio.paused ? '재생' : '일시정지') : (state.transport.playing ? '일시정지' : '재생'));
   $('joinBtn').textContent = joined ? '✓  연습 참여 중' : '♫  연습 참여';
   $('joinBtn').classList.toggle('joined', joined);
@@ -164,16 +184,35 @@ function renderSegments() {
   if (!state.segments.length) { const empty = document.createElement('div'); empty.className = 'empty-state'; empty.textContent = '지휘자가 연습 구간을 추가하면 이곳에 표시됩니다.'; list.append(empty); return; }
   for (const segment of state.segments) {
     const row = document.createElement('div'); row.className = `segment-row${segment.highlighted ? ' highlighted' : ''}${segment.checked ? ' checked' : ''}`;
-    const badge = document.createElement('span'); badge.className = 'segment-badge'; badge.textContent = segment.checked ? '✓' : '♫';
-    const body = document.createElement('div'); body.className = 'segment-body';
-    const title = document.createElement('div'); title.className = 'segment-title'; title.textContent = segment.label;
-    const range = document.createElement('div'); range.className = 'segment-range'; range.textContent = `${formatTime(segment.startSec)} — ${formatTime(segment.endSec)}`;
-    body.append(title, range); row.append(badge, body);
-    if (state.role === 'conductor') {
+    const badge = document.createElement('span'); badge.className = 'segment-badge'; badge.textContent = segment.checked ? '✓' : '♫'; badge.style.backgroundColor = segmentColor(segment);
+    const body = document.createElement('span'); body.className = 'segment-body';
+    const title = document.createElement('span'); title.className = 'segment-title'; title.textContent = segment.label;
+    const range = document.createElement('span'); range.className = 'segment-range'; range.textContent = `${formatTime(segment.startSec)} — ${formatTime(segment.endSec)}`;
+    body.append(title, range);
+    const canJump = state.role === 'conductor' || isSolo();
+    const jump = document.createElement(canJump ? 'button' : 'span'); jump.className = 'segment-jump';
+    if (canJump) {
+      jump.type = 'button';
+      jump.setAttribute('aria-label', `${segment.label} 시작 ${formatTime(segment.startSec)}로 이동`);
+      jump.addEventListener('click', () => {
+        if (isSolo()) { audio.currentTime = segment.startSec; tick(); }
+        else send({ type: 'seek', positionSec: segment.startSec });
+      });
+    }
+    jump.append(badge, body); row.append(jump);
+    if (state.role === 'conductor' && !isSolo()) {
       const actions = document.createElement('div'); actions.className = 'segment-actions';
-      for (const [label, field, cls] of [['강조', 'highlighted', segment.highlighted ? 'highlight-active' : ''], ['완료', 'checked', segment.checked ? 'active' : ''], ['삭제', 'delete', 'delete']]) {
+      for (const [label, field, cls] of [['수정', 'edit', ''], ['강조', 'highlighted', segment.highlighted ? 'highlight-active' : ''], ['완료', 'checked', segment.checked ? 'active' : ''], ['삭제', 'delete', 'delete']]) {
         const button = document.createElement('button'); button.textContent = label; button.className = cls;
-        button.addEventListener('click', () => send(field === 'delete' ? { type: 'segment:delete', id: segment.id } : { type: 'segment:toggle', id: segment.id, field }));
+        button.addEventListener('click', () => {
+          if (field === 'edit') {
+            segmentDraft = { id: segment.id, startSec: segment.startSec, endSec: segment.endSec };
+            $('segmentLabel').value = segment.label;
+            $('segmentColor').value = segmentColor(segment);
+            updateDraftView();
+            $('adminPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } else send(field === 'delete' ? { type: 'segment:delete', id: segment.id } : { type: 'segment:toggle', id: segment.id, field });
+        });
         actions.append(button);
       }
       row.append(actions);
@@ -182,7 +221,7 @@ function renderSegments() {
   }
 }
 function timelineDuration() {
-  return Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : Math.max(60, ...((state?.segments || []).map(s => s.endSec)), projectedPosition());
+  return state?.tracks?.[part]?.durationSec || (Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 60);
 }
 function renderTimeline() {
   if (!state) return;
@@ -192,7 +231,7 @@ function renderTimeline() {
   for (const segment of state.segments) {
     const left = Math.min(100, segment.startSec / duration * 100); const width = Math.max(0, Math.min(100 - left, (segment.endSec - segment.startSec) / duration * 100));
     const label = document.createElement('span'); label.className = `timeline-label${segment.highlighted ? ' highlighted' : ''}`; label.style.left = `${Math.min(94, Math.max(6, left + width / 2))}%`; label.textContent = segment.label;
-    const overlay = document.createElement('div'); overlay.className = `segment-overlay${segment.highlighted ? ' highlighted' : ''}${segment.checked ? ' checked' : ''}`; overlay.style.left = `${left}%`; overlay.style.width = `${width}%`;
+    const overlay = document.createElement('div'); overlay.className = `segment-overlay${segment.highlighted ? ' highlighted' : ''}${segment.checked ? ' checked' : ''}`; overlay.style.left = `${left}%`; overlay.style.width = `${width}%`; overlay.style.backgroundColor = segmentColor(segment);
     labels.append(label); overlays.append(overlay);
   }
 }
@@ -204,14 +243,14 @@ function tick() {
   $('currentTime').textContent = formatTime(pos);
   $('timeline').setAttribute('aria-valuenow', String(Math.floor(pos)));
   $('timeline').setAttribute('aria-valuemax', String(Math.floor(duration)));
-  if (joined && state.transport.playing && !audio.paused && sourceFile && Math.abs(audio.currentTime - pos) > 0.25) {
+  if (!isSolo() && joined && state.transport.playing && !audio.paused && sourceFile && Math.abs(audio.currentTime - pos) > 0.25) {
     try { audio.currentTime = pos; } catch {}
   }
 }
 
 $('sharedMode').addEventListener('click', () => setMode('shared'));
 $('soloMode').addEventListener('click', () => setMode('solo'));
-function setMode(nextMode) { if (mode === nextMode) return; const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing; const position = isSolo() ? audio.currentTime : projectedPosition(); mode = nextMode; localStorage.setItem('gospel-mode', mode); audio.pause(); if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} } render(); if (mode === 'solo' && joined && wasPlaying) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.')); else if (mode === 'shared') syncAudio(); }
+function setMode(nextMode) { if (mode === nextMode) return; const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing; const position = isSolo() ? audio.currentTime : projectedPosition(); mode = nextMode; localStorage.setItem('gospel-mode', mode); syncConductorParticipation(); audio.pause(); if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} } render(); if (mode === 'solo' && joined && wasPlaying) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.')); else if (mode === 'shared') syncAudio(); }
 document.querySelectorAll('.part-tab').forEach(tab => tab.addEventListener('click', () => {
   part = tab.dataset.part; localStorage.setItem('gospel-part', part); render(); syncAudio();
   if (!state?.tracks?.[part]) showToast('이 파트의 음원이 아직 없습니다.');
@@ -219,13 +258,14 @@ document.querySelectorAll('.part-tab').forEach(tab => tab.addEventListener('clic
 $('joinBtn').addEventListener('click', async () => {
   if (joined) {
     joined = false;
+    syncConductorParticipation();
     clearTimeout(startTimer);
     audio.pause();
     render();
     showToast('연습 참여를 해제했습니다. 소리가 꺼졌습니다.');
     return;
   }
-  joined = true; render();
+  joined = true; syncConductorParticipation(); render();
   if (sourceFile) {
     if (state?.transport.playing && state.transport.startAtMs <= Date.now() + offsetMs) await beginAudio();
     else {
@@ -249,9 +289,21 @@ $('timeline').addEventListener('click', event => {
   const rect = $('timeline').getBoundingClientRect();
   const position = Math.max(0, Math.min(timelineDuration(), (event.clientX - rect.left) / rect.width * timelineDuration())); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position });
 });
-$('timeline').addEventListener('keydown', event => {
-  if ((state?.role !== 'conductor' && !isSolo()) || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-  event.preventDefault(); const position = Math.max(0, Math.min(timelineDuration(), displayedPosition() + (event.key === 'ArrowRight' ? 5 : -5))); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position });
+document.addEventListener('keydown', event => {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  const target = event.target;
+  if (target instanceof HTMLElement && (target.isContentEditable || target.closest('dialog[open]') || (target.matches('input, textarea, select') && target !== $('volumeControl')))) return;
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    audio.volume = Math.max(0, Math.min(1, Math.round((audio.volume + (event.key === 'ArrowUp' ? 0.05 : -0.05)) * 100) / 100));
+    $('volumeControl').value = String(audio.volume);
+    $('volumeValue').textContent = Math.round(audio.volume * 100) + '%';
+    return;
+  }
+  if (!state || (state.role !== 'conductor' && !isSolo())) return;
+  event.preventDefault();
+  const positionSec = Math.max(0, Math.min(timelineDuration(), displayedPosition() + (event.key === 'ArrowRight' ? 5 : -5)));
+  if (isSolo()) { audio.currentTime = positionSec; tick(); } else send({ type: 'seek', positionSec });
 });
 audio.addEventListener('loadedmetadata', () => { renderTimeline(); tick(); if (state?.transport.playing && joined) syncAudio(); });
 $('loginOpen').addEventListener('click', () => $('loginDialog').showModal());
@@ -265,12 +317,23 @@ $('loginForm').addEventListener('submit', async event => {
   } catch (error) { $('loginError').textContent = error.message; }
 });
 $('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); connect(); showToast('로그아웃했습니다.'); });
+for (const [buttonId, field] of [['captureStart', 'startSec'], ['captureEnd', 'endSec']]) {
+  $(buttonId).addEventListener('click', () => {
+    if (state?.role !== 'conductor' || isSolo()) return;
+    if (state.transport.playing) return showToast('음악을 일시정지한 뒤 기록해 주세요.');
+    segmentDraft[field] = Math.max(0, Math.min(timelineDuration(), state.transport.positionSec));
+    updateDraftView();
+  });
+}
+$('segmentCancel').addEventListener('click', resetDraft);
 $('segmentForm').addEventListener('submit', event => {
   event.preventDefault();
-  const startSec = parseTime($('segmentStart').value); const endSec = parseTime($('segmentEnd').value);
-  if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return showToast('시작과 끝 시간을 확인해 주세요.');
-  send({ type: 'segment:add', label: $('segmentLabel').value, startSec, endSec });
-  $('segmentForm').reset();
+  if (state?.role !== 'conductor' || isSolo()) return;
+  const { id, startSec, endSec } = segmentDraft;
+  if (startSec === null || endSec === null || endSec <= startSec) return showToast('시작과 종료를 순서대로 기록해 주세요.');
+  if (!socket || socket.readyState !== WebSocket.OPEN) return showToast('서버 연결을 기다려 주세요.');
+  send({ type: id ? 'segment:update' : 'segment:add', ...(id ? { id } : {}), label: $('segmentLabel').value, startSec, endSec, color: $('segmentColor').value });
+  resetDraft();
 });
 
 await measureClock();
