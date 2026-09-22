@@ -35,7 +35,7 @@ npm run build
    - `VITE_SUPABASE_URL` = Supabase Project URL
    - `VITE_SUPABASE_PUBLISHABLE_KEY` = Supabase Publishable key
 
-4. 배포 후 `*.vercel.app` 주소에서 지휘자 로그인, 구간 추가, 다른 브라우저에서 같이 연습 동기화를 확인합니다.
+4. 배포 후 `*.vercel.app` 주소에서 개인 재생, 지휘자 로그인과 구간 추가, 다른 브라우저의 구간 조회를 확인합니다.
 
 ## 5. Route 53 서브도메인 연결
 
@@ -46,9 +46,9 @@ npm run build
 
 ## 운영상 주의
 
-이미 배포한 프로젝트에서 3초 재생 준비 시간을 적용하려면 Supabase **SQL Editor → New query**에 [`supabase/three-second-countdown.sql`](supabase/three-second-countdown.sql) 전체 내용을 붙여 넣고 실행한 뒤 새 코드를 배포합니다. 이 파일은 기존 곡과 연습 구간을 유지하면서 재생 명령의 시작 시각만 변경합니다.
+현재 공개 화면은 개인 연습 전용입니다. 공동 재생 UI는 모바일 동기화 품질 문제로 숨겨져 있습니다. 나중에 공동 재생을 다시 시험하면서 3초 재생 준비 시간을 적용하려면 Supabase **SQL Editor → New query**에 [`supabase/three-second-countdown.sql`](supabase/three-second-countdown.sql) 전체 내용을 붙여 넣고 실행합니다. 이 파일은 기존 곡과 연습 구간을 유지하면서 공동 재생 명령의 시작 시각만 변경합니다. 개인 연습만 배포할 때는 실행할 필요가 없습니다.
 
 - Supabase Free 프로젝트는 1주일간 활동이 없으면 일시 중지될 수 있습니다.
-- 지휘자가 참여 해제·혼자 연습 전환·로그아웃을 하면 공동 재생이 즉시 멈춥니다. 인터넷 연결이 갑자기 끊기는 경우에는 최대 약 30초 후 참여 기한이 만료되어 멈춥니다.
+- 공동 재생을 다시 켤 경우 지휘자가 참여 해제·혼자 연습 전환·로그아웃을 하면 공동 재생이 즉시 멈춥니다. 인터넷 연결이 갑자기 끊기면 최대 약 30초 후 참여 기한이 만료되어 멈춥니다.
 - `public/tracks.json`의 곡 ID나 길이를 바꾸면 Supabase `choir_state`의 `song_id`, `duration_sec`도 맞춰야 합니다.
 - 음원은 Vercel 정적 파일로 제공됩니다. 무료 전송량을 확인하세요.
