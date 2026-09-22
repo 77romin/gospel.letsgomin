@@ -126,6 +126,7 @@ function render() {
   if (!state) return;
   const conductor = state.role === 'conductor';
   $('songTitle').textContent = state.title;
+  $('heroTitle').textContent = state.title;
   $('rolePill').textContent = conductor ? '✦ 지휘자 모드' : '● 청취자 모드';
   $('rolePill').classList.toggle('conductor', conductor);
   $('loginOpen').classList.toggle('hidden', conductor);

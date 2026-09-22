@@ -1,6 +1,6 @@
 {
   "id": "navigator",
-  "title": "Navigator",
+  "title": "항해자",
   "tracks": {
     "choir": { "file": "/audio/navigator-chorus.mp4", "name": "합창", "durationSec": 258.6 },
     "soprano": { "file": "/audio/navigator-soprano.mp4", "name": "소프라노", "durationSec": 258.6 },
