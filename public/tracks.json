@@ -1,17 +1,12 @@
 {
-  "id": "demo-practice",
-  "title": "연습용 샘플",
+  "id": "navigator",
+  "title": "Navigator",
   "tracks": {
-    "choir": { "file": "/audio/demo-choir.wav", "name": "합창", "durationSec": 16 },
-    "soprano": { "file": "/audio/demo-soprano.wav", "name": "소프라노", "durationSec": 16 },
-    "alto": { "file": "/audio/demo-alto.wav", "name": "알토", "durationSec": 16 },
-    "tenor": { "file": "/audio/demo-tenor.wav", "name": "테너", "durationSec": 16 },
-    "baritone": { "file": "/audio/demo-baritone.wav", "name": "바리톤", "durationSec": 16 }
+    "choir": { "file": "/audio/navigator-chorus.mp4", "name": "합창", "durationSec": 258.6 },
+    "soprano": { "file": "/audio/navigator-soprano.mp4", "name": "소프라노", "durationSec": 258.6 },
+    "alto": { "file": "/audio/navigator-alto.mp4", "name": "알토", "durationSec": 258.6 },
+    "tenor": { "file": "/audio/navigator-tenor.mp4", "name": "테너", "durationSec": 258.6 },
+    "baritone": { "file": "/audio/navigator-baritone.mp4", "name": "바리톤", "durationSec": 258.6 }
   },
-  "segments": [
-    { "id": "demo-pre-verse", "label": "Pre-verse", "startSec": 0, "endSec": 4, "highlighted": false, "checked": false },
-    { "id": "demo-verse", "label": "Verse", "startSec": 4, "endSec": 8, "highlighted": true, "checked": false },
-    { "id": "demo-pre-chorus", "label": "Pre-chorus", "startSec": 8, "endSec": 12, "highlighted": false, "checked": false },
-    { "id": "demo-chorus", "label": "Chorus", "startSec": 12, "endSec": 16, "highlighted": false, "checked": false }
-  ]
+  "segments": []
 }

@@ -13,12 +13,12 @@
 
 ## GitHub 저장소에서 음원 교체
 
-1. 다섯 파트의 음원 파일을 [`public/audio`](public/audio)에 추가합니다. 현재 파일은 16초짜리 합성 샘플입니다.
-2. [`public/tracks.json`](public/tracks.json)의 `id`, `title`, 각 파트의 `file` 경로와 `durationSec`를 수정합니다. 경로 예: `/audio/choir.mp3`.
+1. 다섯 파트의 음원 파일을 [`public/audio`](public/audio)에 추가합니다. 현재는 Navigator의 MP4 다섯 파일을 연결했습니다. 화면은 선택한 파트의 소리만 재생합니다.
+2. [`public/tracks.json`](public/tracks.json)의 `id`, `title`, 각 파트의 `file` 경로와 `durationSec`를 수정합니다. 경로 예: `/audio/choir.mp3` 또는 `/audio/choir.mp4`.
 3. 다섯 파일의 시작점과 길이를 같게 맞춥니다. 시작 부분의 무음도 일치해야 합니다.
 4. 코드와 음원을 함께 GitHub에 커밋합니다. 현재 Node 서버를 사용할 때는 파일 변경 후 서버를 재시작해야 합니다. `id`를 바꾸면 이전 곡의 구간 표시 상태가 초기화됩니다.
 
-페이지에는 음원 업로드 기능이 없습니다. 지휘자는 재생·일시정지·건너뛰기와 구간 강조·완료 표시만 조작합니다.
+현재 Navigator 구간 표시는 비워 두었으므로 지휘자가 곡에 맞게 추가할 수 있습니다. 원본 `data/media`는 Git에 포함되지 않으며 배포 파일은 `public/audio`에 있습니다. 페이지에는 음원 업로드 기능이 없습니다. 지휘자는 재생·일시정지·건너뛰기와 구간 강조·완료 표시만 조작합니다.
 
 ## 공개 배포 전에 필요한 것
 

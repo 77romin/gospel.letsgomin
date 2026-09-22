@@ -36,7 +36,7 @@ test('conductor controls shared state while listeners remain read-only', async t
     await new Promise(resolve => setTimeout(resolve, 75));
   }
   assert.equal(ready, true, 'server started');
-  const track = await fetch(`${base}/audio/demo-choir.wav`, { headers: { range: 'bytes=0-43' } });
+  const track = await fetch(`${base}/audio/navigator-chorus.mp4`, { headers: { range: 'bytes=0-43' } });
   assert.equal(track.status, 206);
   assert.equal((await track.arrayBuffer()).byteLength, 44);
   const deniedUpload = await fetch(`${base}/api/upload/choir`, { method: 'PUT' });
@@ -48,11 +48,11 @@ test('conductor controls shared state while listeners remain read-only', async t
   const { ws: conductor, state: conductorState } = await connect(base.replace('http', 'ws') + '/ws', cookie);
   t.after(() => { listener.close(); conductor.close(); });
   assert.equal(listenerState.role, 'listener'); assert.equal(conductorState.role, 'conductor');
-  assert.equal(conductorState.tracks.choir.file, '/audio/demo-choir.wav');
+  assert.equal(conductorState.tracks.choir.file, '/audio/navigator-chorus.mp4');
   listener.send(JSON.stringify({ type: 'play' }));
   assert.equal((await waitForMessage(listener, data => data.type === 'error')).type, 'error');
   conductor.send(JSON.stringify({ type: 'segment:add', label: 'Test bridge', startSec: 0, endSec: 1 }));
-  const segmentState = await waitForMessage(listener, data => data.type === 'state' && data.segments.length === 5);
+  const segmentState = await waitForMessage(listener, data => data.type === 'state' && data.segments.length === 1);
   const added = segmentState.segments.find(segment => segment.label === 'Test bridge');
   assert.ok(added);
   conductor.send(JSON.stringify({ type: 'segment:toggle', id: added.id, field: 'highlighted' }));
@@ -65,12 +65,12 @@ test('conductor controls shared state while listeners remain read-only', async t
   conductor.send(JSON.stringify({ type: 'pause' }));
   const paused = await waitForMessage(listener, data => data.type === 'state' && !data.transport.playing);
   assert.equal(paused.transport.positionSec, 0, 'pause during countdown keeps starting position');
-  conductor.send(JSON.stringify({ type: 'seek', positionSec: 15.8 }));
-  await waitForMessage(listener, data => data.type === 'state' && data.transport.positionSec === 15.8);
+  conductor.send(JSON.stringify({ type: 'seek', positionSec: 258.4 }));
+  await waitForMessage(listener, data => data.type === 'state' && data.transport.positionSec === 258.4);
   conductor.send(JSON.stringify({ type: 'play' }));
   await waitForMessage(listener, data => data.type === 'state' && data.transport.playing);
-  const ended = await waitForMessage(listener, data => data.type === 'state' && !data.transport.playing && data.transport.positionSec === 16);
-  assert.equal(ended.transport.positionSec, 16, 'playback stops at the shared track end');
+  const ended = await waitForMessage(listener, data => data.type === 'state' && !data.transport.playing && data.transport.positionSec === 258.6);
+  assert.equal(ended.transport.positionSec, 258.6, 'playback stops at the shared track end');
   const logout = await fetch(`${base}/api/logout`, { method: 'POST', headers: { cookie } });
   assert.equal(logout.status, 200);
   conductor.send(JSON.stringify({ type: 'seek', positionSec: 0.5 }));
