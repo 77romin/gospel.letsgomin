@@ -16,6 +16,9 @@ let toastTimer = null;
 let videoOpen = false;
 let endingRequested = false;
 let pendingStartAlignment = null;
+const syncDebug = new URLSearchParams(location.search).has('syncDebug');
+let lastMediaEvent = 'none';
+let syncDebugBox = null;
 let segmentDraft = { id: null, startSec: null, endSec: null };
 const defaultSegmentColor = '#6b9f8c';
 const cloudEnabled = !!(import.meta.env?.VITE_SUPABASE_URL && import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY);
@@ -305,6 +308,10 @@ function tick() {
   $('currentTime').textContent = formatTime(pos);
   $('timeline').setAttribute('aria-valuenow', String(Math.floor(pos)));
   $('timeline').setAttribute('aria-valuemax', String(Math.floor(duration)));
+  if (syncDebug && syncDebugBox) {
+    const difference = audio.currentTime - pos;
+    syncDebugBox.textContent = `서버 기준 ${pos.toFixed(2)}초\n이 기기 음원 ${audio.currentTime.toFixed(2)}초\n차이 ${difference.toFixed(2)}초\n상태 ${audio.paused ? '정지' : '재생'} / ready ${audio.readyState}\n마지막 이벤트 ${lastMediaEvent}\n명령 버전 ${state.transport.revision}\n시계 보정 ${offsetMs.toFixed(0)}ms`;
+  }
 }
 
 $('sharedMode').addEventListener('click', () => setMode('shared'));
@@ -385,6 +392,19 @@ audio.addEventListener('playing', () => {
     try { audio.currentTime = expected; } catch {}
   }
 });
+if (syncDebug) {
+  syncDebugBox = document.createElement('pre');
+  syncDebugBox.setAttribute('aria-label', '재생 동기화 진단');
+  Object.assign(syncDebugBox.style, {
+    position: 'fixed', bottom: '8px', right: '8px', zIndex: '1000',
+    background: '#102631ed', color: '#fff', padding: '12px',
+    borderRadius: '8px', fontSize: '13px', lineHeight: '1.4', pointerEvents: 'none'
+  });
+  document.body.append(syncDebugBox);
+  for (const eventName of ['playing', 'waiting', 'seeking', 'seeked', 'canplay', 'pause']) {
+    audio.addEventListener(eventName, () => { lastMediaEvent = eventName; });
+  }
+}
 $('showVideoBtn').addEventListener('click', () => {
   if (!audio.videoWidth) return showToast('이 음원에는 영상이 없습니다.');
   videoOpen = !videoOpen;
