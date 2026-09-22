@@ -13,6 +13,7 @@ let reconnectTimer = null;
 let sourceFile = null;
 let lastRevision = -1;
 let toastTimer = null;
+let videoOpen = false;
 let segmentDraft = { id: null, startSec: null, endSec: null };
 const defaultSegmentColor = '#6b9f8c';
 
@@ -26,6 +27,16 @@ function showToast(message) {
 }
 function isSolo() { return mode === 'solo'; }
 function displayedPosition() { return isSolo() && Number.isFinite(audio.currentTime) ? audio.currentTime : projectedPosition(); }
+function updateVideoDisplay() {
+  const hasVideo = audio.readyState >= 1 && audio.videoWidth > 0;
+  if (!sourceFile || (audio.readyState >= 1 && !hasVideo)) videoOpen = false;
+  $('showVideoBtn').disabled = !hasVideo;
+  $('showVideoBtn').textContent = videoOpen ? 'Hide Video' : 'Show Video';
+  $('showVideoBtn').setAttribute('aria-expanded', String(videoOpen));
+  $('videoStage').setAttribute('aria-hidden', String(!videoOpen));
+  $('videoStage').classList.toggle('is-open', videoOpen);
+  $('playerPanel').classList.toggle('video-open', videoOpen);
+}
 function segmentColor(segment) { return /^#[0-9a-fA-F]{6}$/.test(segment.color) ? segment.color : defaultSegmentColor; }
 function updateDraftView() {
   $('segmentStartTime').textContent = segmentDraft.startSec === null ? '미설정' : formatTime(segmentDraft.startSec);
@@ -98,10 +109,20 @@ function connect() {
 function prepareAudio() {
   const file = state?.tracks?.[part]?.file || null;
   if (file === sourceFile) return false;
+  const soloPosition = isSolo() ? audio.currentTime : null;
+  const resumeSolo = isSolo() && joined && !audio.paused;
   sourceFile = file;
   audio.pause();
-  if (file) { audio.src = file; audio.load(); }
+  if (file) {
+    if (soloPosition !== null) audio.addEventListener('loadedmetadata', () => {
+      if (sourceFile !== file) return;
+      audio.currentTime = Math.min(soloPosition, audio.duration || soloPosition);
+      if (resumeSolo) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.'));
+    }, { once: true });
+    audio.src = file; audio.load();
+  }
   else { audio.removeAttribute('src'); audio.load(); }
+  updateVideoDisplay();
   return true;
 }
 async function beginAudio() {
@@ -119,8 +140,8 @@ async function beginAudio() {
   } catch { showToast('소리를 들으려면 ‘연습 참여’를 다시 눌러 주세요.'); }
 }
 function syncAudio() {
-  if (isSolo()) return;
   const sourceChanged = prepareAudio();
+  if (isSolo()) return;
   if (!state) return;
   const t = state.transport;
   if (!joined || !sourceFile || !t.playing) {
@@ -305,7 +326,12 @@ document.addEventListener('keydown', event => {
   const positionSec = Math.max(0, Math.min(timelineDuration(), displayedPosition() + (event.key === 'ArrowRight' ? 5 : -5)));
   if (isSolo()) { audio.currentTime = positionSec; tick(); } else send({ type: 'seek', positionSec });
 });
-audio.addEventListener('loadedmetadata', () => { renderTimeline(); tick(); if (state?.transport.playing && joined) syncAudio(); });
+audio.addEventListener('loadedmetadata', () => { updateVideoDisplay(); renderTimeline(); tick(); if (state?.transport.playing && joined && !isSolo()) syncAudio(); });
+$('showVideoBtn').addEventListener('click', () => {
+  if (!audio.videoWidth) return showToast('이 음원에는 영상이 없습니다.');
+  videoOpen = !videoOpen;
+  updateVideoDisplay();
+});
 $('loginOpen').addEventListener('click', () => $('loginDialog').showModal());
 $('loginClose').addEventListener('click', () => $('loginDialog').close());
 $('loginForm').addEventListener('submit', async event => {

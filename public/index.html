@@ -34,8 +34,9 @@
           <button class="part-tab" data-part="alto" role="tab" aria-selected="false"><svg class="tab-icon woman-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="8" r="4.5"/><path d="M9 9c0-6 3-8 7-8s7 2 7 8v8h-3v-7c-2 2-6 2-8 0v7H9Z"/><path d="M7 30c.6-7 3.2-12 9-12s8.4 5 9 12Z"/><path d="M12 17h8l-1 3h-6Z"/></svg><span>알토</span><small>ALTO</small></button>
           <button class="part-tab" data-part="tenor" role="tab" aria-selected="false"><svg class="tab-icon man-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="8" r="4.5"/><path d="M11 6c1-4 9-4 10 0-2-1-8-1-10 0Z"/><path d="M5 30c.6-8 4-12 11-12s10.4 4 11 12Z"/><path d="M11 17h10l-1 4h-8Z"/></svg><span>테너</span><small>TENOR</small></button>
           <button class="part-tab" data-part="baritone" role="tab" aria-selected="false"><svg class="tab-icon man-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="8" r="4.5"/><path d="M11 6c1-4 9-4 10 0-2-1-8-1-10 0Z"/><path d="M5 30c.6-8 4-12 11-12s10.4 4 11 12Z"/><path d="M11 17h10l-1 4h-8Z"/></svg><span>바리톤</span><small>BARITONE</small></button>
-        </div><div class="player-panel">
+        </div><div class="player-panel" id="playerPanel">
           <div class="player-head"><div><span class="section-label">YOUR PART</span><div class="part-name" id="partName">합창 <span>CHOIR</span></div></div><span class="track-status" id="trackStatus">음원 준비 전</span></div>
+          <div class="video-stage" id="videoStage" aria-hidden="true"><video id="audio" preload="auto" playsinline></video></div>
           <div class="timeline-wrap">
             <div class="timeline-labels" id="timelineLabels"></div>
             <div class="timeline" id="timeline" role="slider" aria-label="재생 위치" aria-valuemin="0" aria-valuenow="0" tabindex="0">
@@ -44,6 +45,7 @@
             <div class="time-row"><span id="currentTime">00:00</span><span class="time-caption" id="syncCaption">← → 5초 이동 · ↑ ↓ 내 볼륨 조절</span><span id="duration">00:00</span></div>
           </div>
           <div class="player-controls">
+            <button class="video-toggle" id="showVideoBtn" type="button" aria-controls="videoStage" aria-expanded="false" disabled>Show Video</button>
             <div class="control-group"><button class="icon-button conductor-only" id="backBtn" title="10초 뒤로" aria-label="10초 뒤로">↶<small>10</small></button><button class="play-button conductor-only" id="playBtn" aria-label="재생">▶</button><button class="icon-button conductor-only" id="forwardBtn" title="10초 앞으로" aria-label="10초 앞으로">↷<small>10</small></button><span class="listener-notice" id="listenerNotice">재생은 지휘자가 조작합니다</span></div>
             <div class="audio-options"><label class="volume-control" for="volumeControl"><span>볼륨</span><input id="volumeControl" type="range" min="0" max="1" step="0.01" value="1" aria-label="볼륨"><output id="volumeValue">100%</output></label><button class="join-button" id="joinBtn">♫ &nbsp; 연습 참여</button></div>
           </div>
@@ -61,7 +63,6 @@
   </div>
   <dialog id="loginDialog"><form method="dialog" id="loginForm" class="login-card"><button class="dialog-close" type="button" id="loginClose" aria-label="닫기">×</button><span class="section-label">CONDUCTOR ACCESS</span><h2>지휘자 로그인</h2><p>연습의 흐름을 이끄는 계정으로 접속하세요.</p><label>아이디<input id="username" value="conductor" autocomplete="username" required></label><label>비밀번호<input id="password" type="password" autocomplete="current-password" required></label><button class="wide-button" type="submit">로그인</button><div class="form-error" id="loginError"></div></form></dialog>
   <div class="toast" id="toast" role="status"></div>
-  <audio id="audio" preload="auto"></audio>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
