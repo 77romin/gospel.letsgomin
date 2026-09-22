@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+const envFile = path.join(root, '.env');
+if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
 const publicDir = path.join(root, 'public');
 const dataDir = process.env.DATA_DIR || path.join(root, 'data');
 const stateFile = path.join(dataDir, 'state.json');
