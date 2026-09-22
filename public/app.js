@@ -16,6 +16,7 @@ let toastTimer = null;
 let videoOpen = false;
 let endingRequested = false;
 let pendingStartAlignment = null;
+let pendingSeekAlignment = null;
 const syncDebug = new URLSearchParams(location.search).has('syncDebug');
 let lastMediaEvent = 'none';
 let syncDebugBox = null;
@@ -180,6 +181,7 @@ function syncAudio() {
   const t = state.transport;
   if (!joined || !sourceFile || !t.playing || (cloud && !state.conductorParticipating)) {
     pendingStartAlignment = null;
+    pendingSeekAlignment = null;
     clearTimeout(startTimer);
     if (!audio.paused) audio.pause();
     if (sourceFile && audio.readyState >= 1 && !t.playing && (t.revision !== lastRevision || sourceChanged)) {
@@ -389,6 +391,20 @@ audio.addEventListener('playing', () => {
   // buffer. Correct once when sound actually starts, then leave it alone.
   const expected = Math.min(timelineDuration(), projectedPosition());
   if (Math.abs(audio.currentTime - expected) > 0.3) {
+    try {
+      pendingSeekAlignment = { revision: pending.revision, file: pending.file };
+      audio.currentTime = expected;
+    } catch { pendingSeekAlignment = null; }
+  }
+});
+audio.addEventListener('seeked', () => {
+  const pending = pendingSeekAlignment;
+  if (!pending || !cloud || !joined || isSolo() || !state?.transport.playing ||
+      pending.revision !== state.transport.revision || pending.file !== sourceFile) return;
+  pendingSeekAlignment = null;
+  // The first mobile seek can itself take time. Catch up once after it ends.
+  const expected = Math.min(timelineDuration(), projectedPosition());
+  if (expected - audio.currentTime > 0.25) {
     try { audio.currentTime = expected; } catch {}
   }
 });
