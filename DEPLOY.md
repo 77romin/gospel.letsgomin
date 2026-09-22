@@ -46,6 +46,8 @@ npm run build
 
 ## 운영상 주의
 
+이미 배포한 프로젝트에서 3초 재생 준비 시간을 적용하려면 Supabase **SQL Editor → New query**에 [`supabase/three-second-countdown.sql`](supabase/three-second-countdown.sql) 전체 내용을 붙여 넣고 실행한 뒤 새 코드를 배포합니다. 이 파일은 기존 곡과 연습 구간을 유지하면서 재생 명령의 시작 시각만 변경합니다.
+
 - Supabase Free 프로젝트는 1주일간 활동이 없으면 일시 중지될 수 있습니다.
 - 지휘자가 참여 해제·혼자 연습 전환·로그아웃을 하면 공동 재생이 즉시 멈춥니다. 인터넷 연결이 갑자기 끊기는 경우에는 최대 약 30초 후 참여 기한이 만료되어 멈춥니다.
 - `public/tracks.json`의 곡 ID나 길이를 바꾸면 Supabase `choir_state`의 `song_id`, `duration_sec`도 맞춰야 합니다.

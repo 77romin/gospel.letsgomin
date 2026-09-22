@@ -186,12 +186,12 @@ server.on('upgrade', (req, socket, head) => {
           if (transport.playing) return;
           const duration = roomDuration();
           const positionSec = duration !== null && currentPosition() >= duration ? 0 : currentPosition();
-          transport = { playing: true, positionSec, startAtMs: now + 1500, revision: transport.revision + 1 };
+          transport = { playing: true, positionSec, startAtMs: now + 3000, revision: transport.revision + 1 };
         } else if (msg.type === 'pause') {
           transport = { playing: false, positionSec: currentPosition(now), startAtMs: null, revision: transport.revision + 1 };
         } else if (msg.type === 'seek') {
           if (!safeNumber(msg.positionSec)) throw new Error('재생 위치가 올바르지 않습니다.');
-          transport = { playing: transport.playing, positionSec: msg.positionSec, startAtMs: transport.playing ? now + 1000 : null, revision: transport.revision + 1 };
+          transport = { playing: transport.playing, positionSec: msg.positionSec, startAtMs: transport.playing ? now + 3000 : null, revision: transport.revision + 1 };
         } else if (msg.type === 'segment:add') {
           saved.segments.push({ id: crypto.randomUUID(), ...segmentFields(msg), highlighted: false, checked: false });
           saved.segments.sort((a, b) => a.startSec - b.startSec);

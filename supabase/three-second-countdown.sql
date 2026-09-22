@@ -1,58 +1,5 @@
--- Run once in the Supabase SQL Editor. Then add the conductor's Auth user ID
--- to public.choir_conductors using the statement in DEPLOY.md.
-create schema if not exists private;
-grant usage on schema private to authenticated;
-
-create table public.choir_conductors (
-  user_id uuid primary key references auth.users(id) on delete cascade
-);
-
-create table public.choir_state (
-  id smallint primary key default 1 check (id = 1),
-  song_id text not null,
-  duration_sec numeric not null check (duration_sec > 0),
-  transport jsonb not null default '{"playing":false,"positionSec":0,"startAtMs":null,"revision":0}',
-  leader_id uuid references auth.users(id) on delete set null,
-  leader_until timestamptz,
-  updated_at timestamptz not null default clock_timestamp()
-);
-
-create table public.choir_segments (
-  id uuid primary key default gen_random_uuid(),
-  song_id text not null,
-  label text not null check (char_length(label) between 1 and 40),
-  start_sec numeric not null check (start_sec >= 0),
-  end_sec numeric not null check (end_sec > start_sec),
-  color text not null default '#6b9f8c' check (color ~ '^#[0-9a-fA-F]{6}$'),
-  highlighted boolean not null default false,
-  checked boolean not null default false
-);
-
-insert into public.choir_state (id, song_id, duration_sec)
-values (1, 'navigator', 258.6);
-
-alter table public.choir_conductors enable row level security;
-alter table public.choir_state enable row level security;
-alter table public.choir_segments enable row level security;
-
-revoke all on public.choir_conductors from anon, authenticated;
-revoke all on public.choir_state from anon, authenticated;
-revoke all on public.choir_segments from anon, authenticated;
-grant select on public.choir_conductors to authenticated;
-grant select on public.choir_state, public.choir_segments to anon, authenticated;
-
-create policy "Conductor can identify own role"
-on public.choir_conductors for select to authenticated
-using (user_id = (select auth.uid()));
-
-create policy "Anyone can see practice state"
-on public.choir_state for select to anon, authenticated using (true);
-
-create policy "Anyone can see practice segments"
-on public.choir_segments for select to anon, authenticated using (true);
-
--- A dedicated function serializes commands under a row lock. Clients have no
--- direct write grant, and the function checks the signed-in user's allowlist.
+-- Run once in Supabase SQL Editor for an existing deployment.
+-- Schedules shared play and playing seeks three seconds ahead.
 create or replace function private.choir_command(p_command jsonb)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
@@ -197,24 +144,3 @@ begin
     updated_at = clock_timestamp() where id = 1;
 end;
 $$;
-
-create or replace function public.choir_command(p_command jsonb)
-returns void language sql security invoker set search_path = '' as $$
-  select private.choir_command(p_command);
-$$;
-
-create or replace function public.choir_clock()
-returns bigint language sql volatile set search_path = '' as $$
-  select (extract(epoch from clock_timestamp()) * 1000)::bigint;
-$$;
-
-revoke all on function private.choir_command(jsonb) from public, anon;
-grant execute on function private.choir_command(jsonb) to authenticated;
-revoke all on function public.choir_command(jsonb) from public, anon;
-grant execute on function public.choir_command(jsonb) to authenticated;
-grant execute on function public.choir_clock() to anon, authenticated;
-
-alter publication supabase_realtime add table public.choir_state, public.choir_segments;
-
-insert into public.choir_conductors (user_id)
-values ('18343ec4-b9a2-4909-b362-490425c167c9');

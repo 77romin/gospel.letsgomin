@@ -9,6 +9,8 @@ let socket = null;
 let joined = false;
 let offsetMs = 0;
 let startTimer = null;
+let startPlanId = 0;
+let countdownUntilMs = null;
 let reconnectTimer = null;
 let sourceFile = null;
 let lastRevision = -1;
@@ -74,18 +76,13 @@ function projectedPosition() {
   const t = state.transport;
   return t.playing ? Math.max(0, t.positionSec + Math.max(0, Date.now() + offsetMs - t.startAtMs) / 1000) : t.positionSec;
 }
-function resetPlaybackRate() {
-  if (audio.playbackRate !== 1) audio.playbackRate = 1;
-}
-function correctLocalDrift() {
-  if (!cloud || !joined || isSolo() || audio.paused || audio.seeking ||
-      !state?.transport.playing || !state.conductorParticipating) {
-    resetPlaybackRate();
-    return;
-  }
-  const lag = projectedPosition() - audio.currentTime;
-  if (lag > 0.18 && audio.playbackRate !== 1.35) audio.playbackRate = 1.35;
-  else if (lag < 0.08) resetPlaybackRate();
+function waitForMedia(eventName, ready, timeoutMs = 2500) {
+  if (ready()) return Promise.resolve();
+  return new Promise(resolve => {
+    const finish = () => { audio.removeEventListener(eventName, finish); clearTimeout(timer); resolve(); };
+    const timer = setTimeout(finish, timeoutMs);
+    audio.addEventListener(eventName, finish, { once: true });
+  });
 }
 function send(message) {
   if (cloud) return cloud.send(message).catch(error => showToast(error.message));
@@ -167,23 +164,33 @@ function prepareAudio() {
   updateVideoDisplay();
   return true;
 }
-async function beginAudio(expectedRevision = state?.transport.revision, expectedFile = sourceFile, expectedMode = mode) {
+async function beginAudio(expectedRevision = state?.transport.revision, expectedFile = sourceFile, expectedMode = mode,
+    scheduledAtMs = Date.now() + offsetMs, targetPosition = projectedPosition()) {
   if (!joined || !sourceFile || !state?.transport.playing) return;
-  const position = projectedPosition();
-  if (Number.isFinite(audio.duration) && position >= audio.duration) return;
+  const planId = ++startPlanId;
+  const stillCurrent = () => planId === startPlanId && joined && mode === expectedMode &&
+    state?.transport.playing && state.transport.revision === expectedRevision && sourceFile === expectedFile;
+  if (Number.isFinite(audio.duration) && targetPosition >= audio.duration) return;
   try {
-    if (audio.readyState < 2) await new Promise(resolve => {
-      const done = () => { audio.removeEventListener('canplay', done); audio.removeEventListener('error', done); resolve(); };
-      audio.addEventListener('canplay', done, { once: true }); audio.addEventListener('error', done, { once: true });
-      setTimeout(done, 5000);
-    });
-    if (!joined || mode !== expectedMode || !state?.transport.playing ||
-        state.transport.revision !== expectedRevision || sourceFile !== expectedFile) return;
-    audio.currentTime = Math.max(0, projectedPosition());
-    if (cloud && !isSolo()) pendingStartAlignment = { revision: expectedRevision, file: expectedFile };
-    await audio.play();
-    if (!joined || mode !== expectedMode || !state?.transport.playing ||
-        state.transport.revision !== expectedRevision || sourceFile !== expectedFile) audio.pause();
+    await waitForMedia('loadedmetadata', () => audio.readyState >= 1);
+    if (!stillCurrent()) return;
+    const seekReady = waitForMedia('seeked', () => !audio.seeking && Math.abs(audio.currentTime - targetPosition) < 0.05);
+    audio.currentTime = Math.max(0, targetPosition);
+    await seekReady;
+    if (!stillCurrent()) return;
+    await waitForMedia('canplay', () => audio.readyState >= 3);
+    if (!stillCurrent()) return;
+    const start = async () => {
+      if (!stillCurrent()) return;
+      countdownUntilMs = null;
+      render();
+      try {
+        if (cloud && !isSolo()) pendingStartAlignment = { revision: expectedRevision, file: expectedFile };
+        await audio.play();
+        if (!stillCurrent()) audio.pause();
+      } catch { showToast('소리를 들으려면 ‘연습 참여’를 다시 눌러 주세요.'); }
+    };
+    startTimer = setTimeout(start, Math.max(0, scheduledAtMs - (Date.now() + offsetMs)));
   } catch { showToast('소리를 들으려면 ‘연습 참여’를 다시 눌러 주세요.'); }
 }
 function syncAudio() {
@@ -193,7 +200,8 @@ function syncAudio() {
   const t = state.transport;
   if (!joined || !sourceFile || !t.playing || (cloud && !state.conductorParticipating)) {
     pendingStartAlignment = null;
-    resetPlaybackRate();
+    startPlanId++;
+    countdownUntilMs = null;
     clearTimeout(startTimer);
     if (!audio.paused) audio.pause();
     if (sourceFile && audio.readyState >= 1 && !t.playing && (t.revision !== lastRevision || sourceChanged)) {
@@ -204,13 +212,14 @@ function syncAudio() {
   }
   if (t.revision !== lastRevision || sourceChanged) {
     clearTimeout(startTimer);
-    resetPlaybackRate();
+    countdownUntilMs = null;
     audio.pause();
-    const delay = t.startAtMs - (Date.now() + offsetMs);
-    if (delay > 20) {
-      try { audio.currentTime = t.positionSec; } catch {}
-      startTimer = setTimeout(() => beginAudio(t.revision, sourceFile), delay);
-    } else beginAudio(t.revision, sourceFile);
+    const now = Date.now() + offsetMs;
+    const scheduledAtMs = t.startAtMs > now ? t.startAtMs : now + 3000;
+    const targetPosition = t.startAtMs > now ? t.positionSec :
+      Math.min(timelineDuration(), t.positionSec + (scheduledAtMs - t.startAtMs) / 1000);
+    countdownUntilMs = scheduledAtMs;
+    beginAudio(t.revision, sourceFile, mode, scheduledAtMs, targetPosition);
   }
   lastRevision = t.revision;
 }
@@ -314,8 +323,14 @@ function tick() {
     state.conductorParticipating = false;
     syncAudio(); render();
   }
-  correctLocalDrift();
   const pos = displayedPosition(); const duration = timelineDuration();
+  if (countdownUntilMs && joined && !isSolo() && audio.paused) {
+    const remaining = Math.ceil((countdownUntilMs - Date.now() - offsetMs) / 1000);
+    if (remaining > 0) {
+      if (state.role === 'conductor') $('playBtn').textContent = String(remaining);
+      else $('listenerNotice').textContent = `${remaining}초 뒤 재생`;
+    }
+  }
   if (cloud && !isSolo() && state.role === 'conductor' && joined && state.transport.playing && pos >= duration) {
     if (!endingRequested) { endingRequested = true; send({ type: 'pause' }); }
   } else endingRequested = false;
@@ -408,7 +423,6 @@ audio.addEventListener('playing', () => {
     try { audio.currentTime = expected; } catch {}
   }
 });
-audio.addEventListener('pause', resetPlaybackRate);
 if (syncDebug) {
   syncDebugBox = document.createElement('pre');
   syncDebugBox.setAttribute('aria-label', '재생 동기화 진단');

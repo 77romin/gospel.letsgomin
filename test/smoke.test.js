@@ -8,7 +8,7 @@ import { WebSocket } from 'ws';
 
 function waitForMessage(ws, predicate = () => true) {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => { ws.off('message', receive); reject(new Error('Timed out waiting for WebSocket message')); }, 3000);
+    const timeout = setTimeout(() => { ws.off('message', receive); reject(new Error('Timed out waiting for WebSocket message')); }, 6000);
     function receive(raw) {
       const data = JSON.parse(raw.toString());
       if (!predicate(data)) return;
@@ -72,7 +72,7 @@ test('conductor controls shared state while listeners remain read-only', async t
   assert.equal((await waitForMessage(listener, data => data.type === 'state' && data.conductorParticipating)).conductorParticipating, true);
   conductor.send(JSON.stringify({ type: 'play' }));
   const playing = await waitForMessage(listener, data => data.type === 'state' && data.transport.playing);
-  assert.ok(playing.transport.startAtMs > playing.serverTimeMs);
+  assert.ok(playing.transport.startAtMs - playing.serverTimeMs >= 2900, 'shared play has a three-second preparation window');
   conductor.send(JSON.stringify({ type: 'pause' }));
   const paused = await waitForMessage(listener, data => data.type === 'state' && !data.transport.playing);
   assert.equal(paused.transport.positionSec, 0, 'pause during countdown keeps starting position');
