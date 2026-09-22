@@ -75,7 +75,22 @@ export function createCloud({ url, key, onState, onConnection, onError }) {
     if (channel) await db.removeChannel(channel);
     role = await getRole();
     channel = db.channel('choir-practice-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'choir_state' }, () => refresh(myGeneration).catch(onError))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'choir_state' }, payload => {
+        if (myGeneration !== generation) return;
+        const next = payload.new;
+        // A conductor renews the participation lease every eight seconds. The
+        // lease does not change playback, so it must not restart mobile media.
+        if (next && latestState && next.transport?.revision === latestState.transport.revision &&
+            next.song_id === catalog?.id) {
+          const wasParticipating = latestState.conductorParticipating;
+          latestState.leaseUntilMs = next.leader_until ? Date.parse(next.leader_until) : null;
+          latestState.conductorParticipating = !!latestState.leaseUntilMs &&
+            latestState.leaseUntilMs > Date.now() + clockOffsetMs;
+          if (wasParticipating !== latestState.conductorParticipating) onState(latestState);
+          return;
+        }
+        refresh(myGeneration).catch(onError);
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'choir_segments' }, () => refresh(myGeneration).catch(onError))
       .subscribe(async status => {
         if (myGeneration !== generation) return;
@@ -131,5 +146,5 @@ export function createCloud({ url, key, onState, onConnection, onError }) {
     clearInterval(heartbeat);
   });
 
-  return { connect, send, login, logout, measureClock, get state() { return latestState; } };
+  return { connect, send, login, logout, measureClock, refresh, get state() { return latestState; } };
 }

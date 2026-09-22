@@ -150,7 +150,7 @@ function prepareAudio() {
   updateVideoDisplay();
   return true;
 }
-async function beginAudio() {
+async function beginAudio(expectedRevision = state?.transport.revision, expectedFile = sourceFile, expectedMode = mode) {
   if (!joined || !sourceFile || !state?.transport.playing) return;
   const position = projectedPosition();
   if (Number.isFinite(audio.duration) && position >= audio.duration) return;
@@ -160,8 +160,12 @@ async function beginAudio() {
       audio.addEventListener('canplay', done, { once: true }); audio.addEventListener('error', done, { once: true });
       setTimeout(done, 5000);
     });
+    if (!joined || mode !== expectedMode || !state?.transport.playing ||
+        state.transport.revision !== expectedRevision || sourceFile !== expectedFile) return;
     audio.currentTime = Math.max(0, projectedPosition());
     await audio.play();
+    if (!joined || mode !== expectedMode || !state?.transport.playing ||
+        state.transport.revision !== expectedRevision || sourceFile !== expectedFile) audio.pause();
   } catch { showToast('소리를 들으려면 ‘연습 참여’를 다시 눌러 주세요.'); }
 }
 function syncAudio() {
@@ -171,21 +175,21 @@ function syncAudio() {
   const t = state.transport;
   if (!joined || !sourceFile || !t.playing || (cloud && !state.conductorParticipating)) {
     clearTimeout(startTimer);
-    audio.pause();
-    if (sourceFile && audio.readyState >= 1 && !t.playing) {
+    if (!audio.paused) audio.pause();
+    if (sourceFile && audio.readyState >= 1 && !t.playing && (t.revision !== lastRevision || sourceChanged)) {
       try { audio.currentTime = t.positionSec; } catch {}
     }
     lastRevision = t.revision;
     return;
   }
-  if (t.revision !== lastRevision || sourceChanged || audio.paused) {
+  if (t.revision !== lastRevision || sourceChanged) {
     clearTimeout(startTimer);
     audio.pause();
     const delay = t.startAtMs - (Date.now() + offsetMs);
     if (delay > 20) {
       try { audio.currentTime = t.positionSec; } catch {}
-      startTimer = setTimeout(beginAudio, delay);
-    } else beginAudio();
+      startTimer = setTimeout(() => beginAudio(t.revision, sourceFile), delay);
+    } else beginAudio(t.revision, sourceFile);
   }
   lastRevision = t.revision;
 }
@@ -298,14 +302,11 @@ function tick() {
   $('currentTime').textContent = formatTime(pos);
   $('timeline').setAttribute('aria-valuenow', String(Math.floor(pos)));
   $('timeline').setAttribute('aria-valuemax', String(Math.floor(duration)));
-  if (!isSolo() && joined && state.transport.playing && !audio.paused && sourceFile && Math.abs(audio.currentTime - pos) > 0.25) {
-    try { audio.currentTime = pos; } catch {}
-  }
 }
 
 $('sharedMode').addEventListener('click', () => setMode('shared'));
 $('soloMode').addEventListener('click', () => setMode('solo'));
-function setMode(nextMode) { if (mode === nextMode) return; const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing; const position = isSolo() ? audio.currentTime : projectedPosition(); mode = nextMode; localStorage.setItem('gospel-mode', mode); syncConductorParticipation(); audio.pause(); if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} } render(); if (mode === 'solo' && joined && wasPlaying) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.')); else if (mode === 'shared') syncAudio(); }
+function setMode(nextMode) { if (mode === nextMode) return; const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing; const position = isSolo() ? audio.currentTime : projectedPosition(); mode = nextMode; localStorage.setItem('gospel-mode', mode); syncConductorParticipation(); audio.pause(); if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} } render(); if (mode === 'solo' && joined && wasPlaying) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.')); else if (mode === 'shared') { lastRevision = -1; syncAudio(); } }
 document.querySelectorAll('.part-tab').forEach(tab => tab.addEventListener('click', () => {
   part = tab.dataset.part; localStorage.setItem('gospel-part', part); render(); syncAudio();
   if (!state?.tracks?.[part]) showToast('이 파트의 음원이 아직 없습니다.');
@@ -321,6 +322,14 @@ $('joinBtn').addEventListener('click', async () => {
     return;
   }
   joined = true; syncConductorParticipation(); render();
+  if (cloud && !isSolo()) {
+    lastRevision = -1;
+    syncAudio();
+    cloud.measureClock().then(value => { offsetMs = value; }).catch(error => showToast(error.message));
+    cloud.refresh().catch(error => showToast(error.message));
+    showToast('연습에 참여했습니다. 파트를 선택해 들어 보세요.');
+    return;
+  }
   if (sourceFile) {
     if (state?.transport.playing && state.transport.startAtMs <= Date.now() + offsetMs) await beginAudio();
     else {
@@ -410,4 +419,3 @@ $('segmentForm').addEventListener('submit', event => {
 await measureClock();
 connect();
 setInterval(tick, 100);
-setInterval(measureClock, 30000);
