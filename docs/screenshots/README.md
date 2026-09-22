@@ -7,4 +7,4 @@
 | `practice-desktop.png` | 데스크톱에서 파트·재생 막대·연습 구간이 보이는 화면 |
 | `practice-mobile.png` | 모바일 개인 연습 화면 |
 | `conductor-segments.png` | 지휘자 로그인 후 구간 시작·종료와 관리 버튼이 보이는 화면 |
-| `video-open.png` | `Show Video`를 누른 뒤 영상과 얇은 재생 막대가 보이는 화면 |
+| `video-open.png` | 처음부터 영상과 얇은 재생 막대가 보이는 화면 |

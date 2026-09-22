@@ -16,7 +16,7 @@ let reconnectTimer = null;
 let sourceFile = null;
 let lastRevision = -1;
 let toastTimer = null;
-let videoOpen = false;
+let videoOpen = true;
 let endingRequested = false;
 let pendingStartAlignment = null;
 let lastStartTiming = null;
@@ -52,13 +52,13 @@ function isSolo() { return mode === 'solo'; }
 function displayedPosition() { return isSolo() && Number.isFinite(audio.currentTime) ? audio.currentTime : projectedPosition(); }
 function updateVideoDisplay() {
   const hasVideo = audio.readyState >= 1 && audio.videoWidth > 0;
-  if (!sourceFile || (audio.readyState >= 1 && !hasVideo)) videoOpen = false;
+  const showVideo = videoOpen && !!sourceFile && (audio.readyState < 1 || hasVideo);
   $('showVideoBtn').disabled = !hasVideo;
-  $('showVideoBtn').textContent = videoOpen ? 'Hide Video' : 'Show Video';
-  $('showVideoBtn').setAttribute('aria-expanded', String(videoOpen));
-  $('videoStage').setAttribute('aria-hidden', String(!videoOpen));
-  $('videoStage').classList.toggle('is-open', videoOpen);
-  $('playerPanel').classList.toggle('video-open', videoOpen);
+  $('showVideoBtn').textContent = showVideo ? 'Hide Video' : 'Show Video';
+  $('showVideoBtn').setAttribute('aria-expanded', String(showVideo));
+  $('videoStage').setAttribute('aria-hidden', String(!showVideo));
+  $('videoStage').classList.toggle('is-open', showVideo);
+  $('playerPanel').classList.toggle('video-open', showVideo);
 }
 function segmentColor(segment) { return /^#[0-9a-fA-F]{6}$/.test(segment.color) ? segment.color : defaultSegmentColor; }
 function updateDraftView() {
@@ -233,7 +233,7 @@ function render() {
   const solo = isSolo();
   $('songTitle').textContent = state.title;
   $('heroTitle').textContent = state.title;
-  $('rolePill').textContent = conductor ? '✦ 지휘자 모드' : '● 청취자 모드';
+  $('rolePill').textContent = conductor ? '✦ 지휘자' : '● 합창단원';
   $('rolePill').classList.toggle('conductor', conductor);
   $('loginOpen').classList.toggle('hidden', conductor);
   $('logout').classList.toggle('hidden', !conductor);

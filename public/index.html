@@ -24,7 +24,7 @@
       <section class="studio" aria-label="합창 연습실">
         <div class="studio-heading">
           <div><span class="section-label">NOW PRACTICING</span><h2 id="songTitle">새 연습곡</h2><p id="songSubtitle">원하는 파트와 구간을 골라 내 속도로 연습하세요.</p></div>
-          <div class="role-pill" id="rolePill">● 청취자 모드</div>
+          <div class="role-pill" id="rolePill">● 합창단원</div>
         </div>
 
         <div class="mode-switch hidden" role="group" aria-label="연습 모드"><button id="sharedMode" class="mode-button hidden" type="button" disabled>같이 연습</button><button id="soloMode" class="mode-button active" type="button">혼자 연습</button></div>
@@ -53,7 +53,6 @@
 
         <div class="lower-grid">
           <section class="segments-panel"><div class="panel-heading"><div><span class="section-label">PRACTICE MAP</span><h3>연습 구간</h3></div><span class="count" id="segmentCount">0개 구간</span></div><div class="segments-list" id="segmentsList"><div class="empty-state">지휘자가 연습 구간을 추가하면 이곳에 표시됩니다.</div></div></section>
-          <aside class="guide-panel"><div class="guide-icon">✧</div><h3>각자의 속도로,<br>각자의 목소리.</h3><p>파트를 선택하고 원하는 구간으로 이동해 반복해서 들어 보세요. 지휘자가 표시한 연습 구간도 사용할 수 있습니다.</p><div class="guide-rule"></div><div class="guide-line"><span class="guide-dot gold"></span>지휘자 · 연습 구간 설정</div><div class="guide-line"><span class="guide-dot mint"></span>성가대원 · 파트 선택과 개인 연습</div></aside>
         </div>
 
         <section class="admin-panel hidden" id="adminPanel"><div class="panel-heading"><div><span class="section-label">CONDUCTOR DESK</span><h3>연습 구간 설정</h3></div></div><div class="admin-grid"><div class="admin-card"><h4 id="segmentFormTitle">연습 구간 추가</h4><p class="small-note">음악을 멈춘 뒤 현재 위치를 시작과 종료로 기록하세요.</p><form id="segmentForm"><div class="capture-actions"><div><button type="button" id="captureStart">구간 시작</button><output id="segmentStartTime">미설정</output></div><div><button type="button" id="captureEnd">구간 종료</button><output id="segmentEndTime">미설정</output></div></div><label>구간 이름<input id="segmentLabel" required maxlength="40" placeholder="Verse 1"></label><label class="color-field">구간 색상<input id="segmentColor" type="color" value="#6b9f8c" aria-label="구간 색상"></label><button type="submit" class="wide-button" id="segmentSubmit">구간 추가</button><button type="button" class="cancel-button hidden" id="segmentCancel">수정 취소</button></form></div></div></section>
