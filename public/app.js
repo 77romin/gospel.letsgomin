@@ -15,6 +15,7 @@ let lastRevision = -1;
 let toastTimer = null;
 let videoOpen = false;
 let endingRequested = false;
+let pendingStartAlignment = null;
 let segmentDraft = { id: null, startSec: null, endSec: null };
 const defaultSegmentColor = '#6b9f8c';
 const cloudEnabled = !!(import.meta.env?.VITE_SUPABASE_URL && import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY);
@@ -163,6 +164,7 @@ async function beginAudio(expectedRevision = state?.transport.revision, expected
     if (!joined || mode !== expectedMode || !state?.transport.playing ||
         state.transport.revision !== expectedRevision || sourceFile !== expectedFile) return;
     audio.currentTime = Math.max(0, projectedPosition());
+    if (cloud && !isSolo()) pendingStartAlignment = { revision: expectedRevision, file: expectedFile };
     await audio.play();
     if (!joined || mode !== expectedMode || !state?.transport.playing ||
         state.transport.revision !== expectedRevision || sourceFile !== expectedFile) audio.pause();
@@ -174,6 +176,7 @@ function syncAudio() {
   if (!state) return;
   const t = state.transport;
   if (!joined || !sourceFile || !t.playing || (cloud && !state.conductorParticipating)) {
+    pendingStartAlignment = null;
     clearTimeout(startTimer);
     if (!audio.paused) audio.pause();
     if (sourceFile && audio.readyState >= 1 && !t.playing && (t.revision !== lastRevision || sourceChanged)) {
@@ -370,6 +373,18 @@ document.addEventListener('keydown', event => {
   if (isSolo()) { audio.currentTime = positionSec; tick(); } else send({ type: 'seek', positionSec });
 });
 audio.addEventListener('loadedmetadata', () => { updateVideoDisplay(); renderTimeline(); tick(); if (state?.transport.playing && joined && !isSolo()) syncAudio(); });
+audio.addEventListener('playing', () => {
+  const pending = pendingStartAlignment;
+  if (!pending || !cloud || !joined || isSolo() || !state?.transport.playing ||
+      pending.revision !== state.transport.revision || pending.file !== sourceFile) return;
+  pendingStartAlignment = null;
+  // Mobile playback may begin after play() because the file still needs to
+  // buffer. Correct once when sound actually starts, then leave it alone.
+  const expected = Math.min(timelineDuration(), projectedPosition());
+  if (Math.abs(audio.currentTime - expected) > 0.3) {
+    try { audio.currentTime = expected; } catch {}
+  }
+});
 $('showVideoBtn').addEventListener('click', () => {
   if (!audio.videoWidth) return showToast('이 음원에는 영상이 없습니다.');
   videoOpen = !videoOpen;

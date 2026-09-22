@@ -13,10 +13,16 @@ export function createCloud({ url, key, onState, onConnection, onError }) {
   let heartbeat = null;
 
   async function measureClock() {
-    const before = Date.now();
-    const { data, error } = await db.rpc('choir_clock');
-    if (error) throw error;
-    clockOffsetMs = Number(data) - (before + Date.now()) / 2;
+    let best = null;
+    for (let i = 0; i < 3; i++) {
+      const before = Date.now();
+      const { data, error } = await db.rpc('choir_clock');
+      if (error) throw error;
+      const after = Date.now();
+      const sample = { delay: after - before, offset: Number(data) - (before + after) / 2 };
+      if (!best || sample.delay < best.delay) best = sample;
+    }
+    clockOffsetMs = best.offset;
     return clockOffsetMs;
   }
 
