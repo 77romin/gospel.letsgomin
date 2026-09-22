@@ -258,6 +258,8 @@ function render() {
   $('playBtn').textContent = solo ? (audio.paused ? '▶' : 'Ⅱ') : (state.transport.playing ? 'Ⅱ' : '▶');
   $('playBtn').disabled = conductor && !solo && !joined;
   $('playBtn').setAttribute('aria-label', solo ? (audio.paused ? '재생' : '일시정지') : (state.transport.playing ? '일시정지' : '재생'));
+  $('joinBtn').classList.toggle('hidden', solo);
+  $('joinBtn').disabled = solo;
   $('joinBtn').textContent = joined ? '✓  연습 참여 중' : '♫  연습 참여';
   $('joinBtn').classList.toggle('joined', joined);
   $('segmentCount').textContent = `${state.segments.length}개 구간`;
@@ -392,7 +394,21 @@ $('volumeControl').addEventListener('input', event => {
   audio.volume = Number(event.target.value);
   $('volumeValue').textContent = Math.round(audio.volume * 100) + '%';
 });
-$('playBtn').addEventListener('click', async () => { if (isSolo()) { if (!joined) return showToast('먼저 연습 참여를 눌러 주세요.'); try { if (audio.paused) await audio.play(); else audio.pause(); render(); } catch { showToast('소리를 들으려면 연습 참여를 눌러 주세요.'); } } else send({ type: state?.transport.playing ? 'pause' : 'play' }); });
+$('playBtn').addEventListener('click', async () => {
+  if (!isSolo()) return send({ type: state?.transport.playing ? 'pause' : 'play' });
+  if (!state || !sourceFile) return showToast('음원을 불러오는 중입니다. 잠시 후 다시 눌러 주세요.');
+  const firstPlay = !joined;
+  if (firstPlay) { joined = true; syncConductorParticipation(); }
+  try {
+    if (audio.paused) await audio.play();
+    else audio.pause();
+    render();
+  } catch {
+    if (firstPlay) joined = false;
+    render();
+    showToast('재생할 수 없습니다. 재생 버튼을 다시 눌러 주세요.');
+  }
+});
 $('backBtn').addEventListener('click', () => { const position = Math.max(0, displayedPosition() - 10); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position }); });
 $('forwardBtn').addEventListener('click', () => { const position = Math.min(timelineDuration(), displayedPosition() + 10); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position }); });
 $('timeline').addEventListener('click', event => {
@@ -417,6 +433,9 @@ document.addEventListener('keydown', event => {
   if (isSolo()) { audio.currentTime = positionSec; tick(); } else send({ type: 'seek', positionSec });
 });
 audio.addEventListener('loadedmetadata', () => { updateVideoDisplay(); renderTimeline(); tick(); if (state?.transport.playing && joined && !isSolo()) syncAudio(); });
+audio.addEventListener('play', render);
+audio.addEventListener('pause', render);
+audio.addEventListener('ended', render);
 audio.addEventListener('playing', () => {
   if (lastStartTiming?.revision === state?.transport.revision && lastStartTiming.playingAtMs === null)
     lastStartTiming.playingAtMs = Date.now() + offsetMs;
