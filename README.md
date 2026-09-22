@@ -27,6 +27,6 @@
 
 ## 공개 배포 전에 필요한 것
 
-**GitHub Pages에 파일만 올리고 도메인을 연결해서는 실시간 재생 기능이 작동하지 않습니다.** `server.js`가 지휘자 인증과 WebSocket 동기화를 담당하기 때문입니다. 공개하려면 실시간 서버를 별도로 배포하거나 Cloudflare Pages Functions와 Durable Object로 옮겨야 합니다. 이후 Route 53에서 `gospel.letsgomin.com`을 배포 주소에 연결합니다.
+Vercel 정적 사이트와 Supabase Free를 사용하는 배포 절차는 [`DEPLOY.md`](DEPLOY.md)에 있습니다. 배포 빌드에서는 Supabase Auth, 데이터베이스, Realtime으로 공동 연습을 동기화합니다. `npm start`는 기존 로컬 Node 서버를 계속 사용합니다.
 
-`CONDUCTOR_PASSWORD`를 GitHub에 올리지 마세요. 현재 구간 상태는 Git에 포함되지 않는 `data/state.json`에 저장되며, 서버가 재시작되면 재생은 정지되고 로그인 세션도 만료됩니다. 공개 운영 전에는 HTTPS, 운영용 인증, 상태 백업을 마련해야 합니다.
+`CONDUCTOR_PASSWORD`를 GitHub에 올리지 마세요. 로컬 Node 서버의 구간 상태는 Git에 포함되지 않는 `data/state.json`에 저장됩니다. Supabase 배포에서는 구간 상태가 데이터베이스에 저장되고 지휘자는 Supabase Auth 이메일 계정으로 로그인합니다.

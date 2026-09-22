@@ -14,8 +14,23 @@ let sourceFile = null;
 let lastRevision = -1;
 let toastTimer = null;
 let videoOpen = false;
+let endingRequested = false;
 let segmentDraft = { id: null, startSec: null, endSec: null };
 const defaultSegmentColor = '#6b9f8c';
+const cloudEnabled = !!(import.meta.env?.VITE_SUPABASE_URL && import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY);
+const cloud = cloudEnabled ? (await import('./cloud.js')).createCloud({
+  url: import.meta.env.VITE_SUPABASE_URL,
+  key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  onState: nextState => { state = nextState; render(); syncAudio(); },
+  onConnection: setConnection,
+  onError: error => showToast(error.message || '서버 연결 오류가 발생했습니다.')
+}) : null;
+if (cloud) {
+  $('username').value = '';
+  $('username').type = 'email';
+  $('username').placeholder = '지휘자 이메일';
+  $('username').previousSibling.textContent = '이메일';
+}
 
 function formatTime(sec) {
   if (!Number.isFinite(sec) || sec < 0) sec = 0;
@@ -56,10 +71,15 @@ function projectedPosition() {
   return t.playing ? Math.max(0, t.positionSec + Math.max(0, Date.now() + offsetMs - t.startAtMs) / 1000) : t.positionSec;
 }
 function send(message) {
+  if (cloud) return cloud.send(message).catch(error => showToast(error.message));
   if (!socket || socket.readyState !== WebSocket.OPEN) return showToast('서버 연결을 기다려 주세요.');
   socket.send(JSON.stringify(message));
 }
 function syncConductorParticipation() {
+  if (cloud && state?.role === 'conductor') {
+    send({ type: 'participation:set', active: joined && !isSolo() });
+    return;
+  }
   if (state?.role === 'conductor' && socket?.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: 'participation:set', active: joined && !isSolo() }));
   }
@@ -69,6 +89,10 @@ function setConnection(connected) {
   $('connection').lastChild.textContent = connected ? '실시간 연결됨' : '연결 끊김';
 }
 async function measureClock() {
+  if (cloud) {
+    try { offsetMs = await cloud.measureClock(); } catch (error) { showToast(error.message); }
+    return;
+  }
   const samples = [];
   for (let i = 0; i < 5; i++) {
     try {
@@ -82,6 +106,7 @@ async function measureClock() {
   if (samples.length) offsetMs = samples.sort((a, b) => a.delay - b.delay)[0].offset;
 }
 function connect() {
+  if (cloud) return cloud.connect().catch(error => { setConnection(false); showToast(error.message); });
   clearTimeout(reconnectTimer);
   if (socket) socket.close();
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`);
@@ -144,7 +169,7 @@ function syncAudio() {
   if (isSolo()) return;
   if (!state) return;
   const t = state.transport;
-  if (!joined || !sourceFile || !t.playing) {
+  if (!joined || !sourceFile || !t.playing || (cloud && !state.conductorParticipating)) {
     clearTimeout(startTimer);
     audio.pause();
     if (sourceFile && audio.readyState >= 1 && !t.playing) {
@@ -258,7 +283,16 @@ function renderTimeline() {
 }
 function tick() {
   if (!state) return;
+  if (cloud && !isSolo() && state.conductorParticipating && state.leaseUntilMs <= Date.now() + offsetMs) {
+    state.transport = { playing: false, positionSec: Math.min(timelineDuration(), projectedPosition()),
+      startAtMs: null, revision: state.transport.revision };
+    state.conductorParticipating = false;
+    syncAudio(); render();
+  }
   const pos = displayedPosition(); const duration = timelineDuration();
+  if (cloud && !isSolo() && state.role === 'conductor' && joined && state.transport.playing && pos >= duration) {
+    if (!endingRequested) { endingRequested = true; send({ type: 'pause' }); }
+  } else endingRequested = false;
   const pct = Math.max(0, Math.min(100, pos / duration * 100));
   $('timelineProgress').style.width = `${pct}%`; $('timelineThumb').style.left = `${pct}%`;
   $('currentTime').textContent = formatTime(pos);
@@ -337,12 +371,23 @@ $('loginClose').addEventListener('click', () => $('loginDialog').close());
 $('loginForm').addEventListener('submit', async event => {
   event.preventDefault(); $('loginError').textContent = '';
   try {
+    if (cloud) {
+      await cloud.login($('username').value, $('password').value);
+      $('loginDialog').close(); $('password').value = '';
+      await connect(); showToast('지휘자로 로그인했습니다.');
+      return;
+    }
     const response = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: $('username').value, password: $('password').value }) });
     const result = await response.json(); if (!response.ok) throw new Error(result.error);
     $('loginDialog').close(); $('password').value = ''; connect(); showToast('지휘자로 로그인했습니다.');
   } catch (error) { $('loginError').textContent = error.message; }
 });
-$('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); connect(); showToast('로그아웃했습니다.'); });
+$('logout').addEventListener('click', async () => {
+  try {
+    if (cloud) await cloud.logout(); else await fetch('/api/logout', { method: 'POST' });
+    joined = false; audio.pause(); connect(); showToast('로그아웃했습니다.');
+  } catch (error) { showToast(error.message); }
+});
 for (const [buttonId, field] of [['captureStart', 'startSec'], ['captureEnd', 'endSec']]) {
   $(buttonId).addEventListener('click', () => {
     if (state?.role !== 'conductor' || isSolo()) return;
@@ -357,7 +402,7 @@ $('segmentForm').addEventListener('submit', event => {
   if (state?.role !== 'conductor' || isSolo()) return;
   const { id, startSec, endSec } = segmentDraft;
   if (startSec === null || endSec === null || endSec <= startSec) return showToast('시작과 종료를 순서대로 기록해 주세요.');
-  if (!socket || socket.readyState !== WebSocket.OPEN) return showToast('서버 연결을 기다려 주세요.');
+  if (!cloud && (!socket || socket.readyState !== WebSocket.OPEN)) return showToast('서버 연결을 기다려 주세요.');
   send({ type: id ? 'segment:update' : 'segment:add', ...(id ? { id } : {}), label: $('segmentLabel').value, startSec, endSec, color: $('segmentColor').value });
   resetDraft();
 });
