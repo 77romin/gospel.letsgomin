@@ -2,7 +2,8 @@ const $ = id => document.getElementById(id);
 const audio = $('audio');
 const names = { choir: ['합창', 'CHOIR'], soprano: ['소프라노', 'SOPRANO'], alto: ['알토', 'ALTO'], tenor: ['테너', 'TENOR'], baritone: ['바리톤', 'BARITONE'] };
 let part = localStorage.getItem('gospel-part') || 'choir';
-let mode = localStorage.getItem('gospel-mode') || 'shared';
+let mode = 'solo';
+localStorage.setItem('gospel-mode', mode);
 if (!names[part]) part = 'choir';
 let state = null;
 let socket = null;
@@ -236,7 +237,7 @@ function render() {
   $('rolePill').classList.toggle('conductor', conductor);
   $('loginOpen').classList.toggle('hidden', conductor);
   $('logout').classList.toggle('hidden', !conductor);
-  $('adminPanel').classList.toggle('hidden', !conductor || solo);
+  $('adminPanel').classList.toggle('hidden', !conductor);
   $('listenerNotice').classList.toggle('hidden', conductor || solo);
   $('listenerNotice').textContent = state.conductorParticipating ? '재생은 지휘자가 조작합니다' : '지휘자의 연습 참여를 기다립니다';
   $('syncCaption').textContent = conductor || solo ? '← → 5초 이동 · ↑ ↓ 내 볼륨 조절' : '↑ ↓ 내 볼륨 조절';
@@ -283,7 +284,7 @@ function renderSegments() {
       });
     }
     jump.append(badge, body); row.append(jump);
-    if (state.role === 'conductor' && !isSolo()) {
+    if (state.role === 'conductor') {
       const actions = document.createElement('div'); actions.className = 'segment-actions';
       for (const [label, field, cls] of [['수정', 'edit', ''], ['강조', 'highlighted', segment.highlighted ? 'highlight-active' : ''], ['완료', 'checked', segment.checked ? 'active' : ''], ['삭제', 'delete', 'delete']]) {
         const button = document.createElement('button'); button.textContent = label; button.className = cls;
@@ -352,7 +353,7 @@ function tick() {
 
 $('sharedMode').addEventListener('click', () => setMode('shared'));
 $('soloMode').addEventListener('click', () => setMode('solo'));
-function setMode(nextMode) { if (mode === nextMode) return; const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing; const position = isSolo() ? audio.currentTime : projectedPosition(); mode = nextMode; localStorage.setItem('gospel-mode', mode); syncConductorParticipation(); audio.pause(); if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} } render(); if (mode === 'solo' && joined && wasPlaying) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.')); else if (mode === 'shared') { lastRevision = -1; syncAudio(); } }
+function setMode(nextMode) { if (nextMode !== 'solo' || mode === nextMode) return; const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing; const position = isSolo() ? audio.currentTime : projectedPosition(); mode = nextMode; localStorage.setItem('gospel-mode', mode); syncConductorParticipation(); audio.pause(); if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} } render(); if (joined && wasPlaying) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.')); }
 document.querySelectorAll('.part-tab').forEach(tab => tab.addEventListener('click', () => {
   part = tab.dataset.part; localStorage.setItem('gospel-part', part); render(); syncAudio();
   if (!state?.tracks?.[part]) showToast('이 파트의 음원이 아직 없습니다.');
@@ -472,16 +473,16 @@ $('logout').addEventListener('click', async () => {
 });
 for (const [buttonId, field] of [['captureStart', 'startSec'], ['captureEnd', 'endSec']]) {
   $(buttonId).addEventListener('click', () => {
-    if (state?.role !== 'conductor' || isSolo()) return;
-    if (state.transport.playing) return showToast('음악을 일시정지한 뒤 기록해 주세요.');
-    segmentDraft[field] = Math.max(0, Math.min(timelineDuration(), state.transport.positionSec));
+    if (state?.role !== 'conductor') return;
+    if (!audio.paused) return showToast('음악을 일시정지한 뒤 기록해 주세요.');
+    segmentDraft[field] = Math.max(0, Math.min(timelineDuration(), audio.currentTime));
     updateDraftView();
   });
 }
 $('segmentCancel').addEventListener('click', resetDraft);
 $('segmentForm').addEventListener('submit', event => {
   event.preventDefault();
-  if (state?.role !== 'conductor' || isSolo()) return;
+  if (state?.role !== 'conductor') return;
   const { id, startSec, endSec } = segmentDraft;
   if (startSec === null || endSec === null || endSec <= startSec) return showToast('시작과 종료를 순서대로 기록해 주세요.');
   if (!cloud && (!socket || socket.readyState !== WebSocket.OPEN)) return showToast('서버 연결을 기다려 주세요.');

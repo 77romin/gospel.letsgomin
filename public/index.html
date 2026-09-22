@@ -23,11 +23,11 @@
 
       <section class="studio" aria-label="합창 연습실">
         <div class="studio-heading">
-          <div><span class="section-label">NOW PRACTICING</span><h2 id="songTitle">새 연습곡</h2><p id="songSubtitle">다섯 목소리가 하나의 시간을 공유합니다.</p></div>
+          <div><span class="section-label">NOW PRACTICING</span><h2 id="songTitle">새 연습곡</h2><p id="songSubtitle">원하는 파트와 구간을 골라 내 속도로 연습하세요.</p></div>
           <div class="role-pill" id="rolePill">● 청취자 모드</div>
         </div>
 
-        <div class="mode-switch" role="group" aria-label="연습 모드"><button id="sharedMode" class="mode-button active" type="button">같이 연습</button><button id="soloMode" class="mode-button" type="button">혼자 연습</button></div>
+        <div class="mode-switch" role="group" aria-label="연습 모드"><button id="sharedMode" class="mode-button hidden" type="button" disabled>같이 연습</button><button id="soloMode" class="mode-button active" type="button">혼자 연습</button></div>
         <div class="part-tabs" id="partTabs" role="tablist" aria-label="연습할 파트">
           <button class="part-tab active" data-part="choir" role="tab" aria-selected="true"><svg class="tab-icon choir-icon" viewBox="0 0 64 32" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M4 28c.4-6 2.2-10 6-10s5.6 4 6 10Z"/><path d="M6 9c0-5 8-5 8 0v5H6Z"/><circle cx="24" cy="8" r="3.5"/><path d="M18 28c.4-6 2.2-10 6-10s5.6 4 6 10Z"/><path d="M20 9c0-5 8-5 8 0v5h-2v-4c-2 2-4 2-6 0v4h-2Z"/><circle cx="40" cy="8" r="3.5"/><path d="M33 28c.5-6 2.8-10 7-10s6.5 4 7 10Z"/><path d="M36 6c1-3 7-3 8 0-2-1-6-1-8 0Z"/><circle cx="54" cy="8" r="3.5"/><path d="M47 28c.5-6 2.8-10 7-10s6.5 4 7 10Z"/><path d="M50 6c1-3 7-3 8 0-2-1-6-1-8 0Z"/></svg><span>합창</span><small>ALL VOICES</small></button>
           <button class="part-tab" data-part="soprano" role="tab" aria-selected="false"><svg class="tab-icon woman-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="8" r="4.5"/><path d="M9 9c0-6 3-8 7-8s7 2 7 8v8h-3v-7c-2 2-6 2-8 0v7H9Z"/><path d="M7 30c.6-7 3.2-12 9-12s8.4 5 9 12Z"/><path d="M12 17h8l-1 3h-6Z"/></svg><span>소프라노</span><small>SOPRANO</small></button>
@@ -53,7 +53,7 @@
 
         <div class="lower-grid">
           <section class="segments-panel"><div class="panel-heading"><div><span class="section-label">PRACTICE MAP</span><h3>연습 구간</h3></div><span class="count" id="segmentCount">0개 구간</span></div><div class="segments-list" id="segmentsList"><div class="empty-state">지휘자가 연습 구간을 추가하면 이곳에 표시됩니다.</div></div></section>
-          <aside class="guide-panel"><div class="guide-icon">✧</div><h3>하나의 흐름,<br>각자의 목소리.</h3><p>지휘자가 재생을 시작하면 모두가 같은 시점으로 이동합니다. 탭을 바꾸면 내게 들리는 파트만 바뀝니다.</p><div class="guide-rule"></div><div class="guide-line"><span class="guide-dot gold"></span>지휘자 · 재생과 구간 표시</div><div class="guide-line"><span class="guide-dot mint"></span>청취자 · 파트 선택과 듣기</div></aside>
+          <aside class="guide-panel"><div class="guide-icon">✧</div><h3>각자의 속도로,<br>각자의 목소리.</h3><p>파트를 선택하고 원하는 구간으로 이동해 반복해서 들어 보세요. 지휘자가 표시한 연습 구간도 사용할 수 있습니다.</p><div class="guide-rule"></div><div class="guide-line"><span class="guide-dot gold"></span>지휘자 · 연습 구간 설정</div><div class="guide-line"><span class="guide-dot mint"></span>성가대원 · 파트 선택과 개인 연습</div></aside>
         </div>
 
         <section class="admin-panel hidden" id="adminPanel"><div class="panel-heading"><div><span class="section-label">CONDUCTOR DESK</span><h3>연습 구간 설정</h3></div></div><div class="admin-grid"><div class="admin-card"><h4 id="segmentFormTitle">연습 구간 추가</h4><p class="small-note">음악을 멈춘 뒤 현재 위치를 시작과 종료로 기록하세요.</p><form id="segmentForm"><div class="capture-actions"><div><button type="button" id="captureStart">구간 시작</button><output id="segmentStartTime">미설정</output></div><div><button type="button" id="captureEnd">구간 종료</button><output id="segmentEndTime">미설정</output></div></div><label>구간 이름<input id="segmentLabel" required maxlength="40" placeholder="Verse 1"></label><label class="color-field">구간 색상<input id="segmentColor" type="color" value="#6b9f8c" aria-label="구간 색상"></label><button type="submit" class="wide-button" id="segmentSubmit">구간 추가</button><button type="button" class="cancel-button hidden" id="segmentCancel">수정 취소</button></form></div></div></section>
