@@ -40,9 +40,11 @@ test('conductor controls shared state while listeners remain read-only', async t
   assert.match(page, /id="practiceLock"/);
   assert.match(page, /id="joinOverlayBtn"/);
   assert.match(page, /id="joinBtn">연습 나가기<\/button>/);
+  assert.match(page, /<video id="video"[^>]*\bmuted\b[^>]*><\/video>/, 'score video is a dedicated muted element');
+  assert.match(page, /<audio id="soloAudio"[^>]*><\/audio>/, 'solo MP3 playback uses a separate audio element');
   assert.ok(page.indexOf('id="soloMode"') < page.indexOf('id="sharedMode"'), 'solo mode is listed before shared mode');
   assert.ok(page.indexOf('id="soloMode"') < page.indexOf('class="top-actions"'), 'practice modes are placed beside the logo');
-  const videoTrack = await fetch(`${base}/media/video/navigator-chorus.mp4`, { headers: { range: 'bytes=0-43' } });
+  const videoTrack = await fetch(`${base}/media/video/navigator-score.mp4`, { headers: { range: 'bytes=0-43' } });
   assert.equal(videoTrack.status, 206);
   assert.equal((await videoTrack.arrayBuffer()).byteLength, 44);
   const audioTrack = await fetch(`${base}/media/audio/navigator-chorus.mp3`, { headers: { range: 'bytes=0-43' } });
@@ -57,9 +59,11 @@ test('conductor controls shared state while listeners remain read-only', async t
   const { ws: conductor, state: conductorState } = await connect(base.replace('http', 'ws') + '/ws', cookie);
   t.after(() => { listener.close(); conductor.close(); });
   assert.equal(listenerState.role, 'listener'); assert.equal(conductorState.role, 'conductor');
-  assert.equal(conductorState.tracks.choir.file, '/media/video/navigator-chorus.mp4');
+  assert.equal(conductorState.tracks.choir.file, '/media/video/navigator-score.mp4');
   assert.equal(conductorState.tracks.choir.audioFile, '/media/audio/navigator-chorus.mp3');
-  assert.equal(conductorState.tracks.choir.videoFile, '/media/video/navigator-chorus.mp4');
+  assert.equal(conductorState.tracks.choir.videoFile, '/media/video/navigator-score.mp4');
+  assert.equal(new Set(Object.values(conductorState.tracks).map(track => track.videoFile)).size, 1, 'all parts share one score video');
+  assert.equal(new Set(Object.values(conductorState.tracks).map(track => track.audioFile)).size, Object.keys(conductorState.tracks).length, 'each part keeps its own MP3');
   listener.send(JSON.stringify({ type: 'play' }));
   assert.equal((await waitForMessage(listener, data => data.type === 'error')).type, 'error');
   conductor.send(JSON.stringify({ type: 'segment:add', label: 'Test bridge', startSec: 0, endSec: 1, color: '#aabbcc' }));

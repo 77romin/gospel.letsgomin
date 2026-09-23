@@ -75,13 +75,13 @@ npm test
 
 | 영역 | 구성 |
 | --- | --- |
-| 화면·미디어 | Vanilla JavaScript, HTML, CSS, MP4 영상, Web Audio로 디코딩한 MP3 음원 |
+| 화면·미디어 | Vanilla JavaScript, HTML, CSS, 공통 무음 MP4, 파트별 MP3 |
 | 로컬 실행 | Node.js HTTP 서버와 WebSocket |
 | 운영 데이터·인증 | Supabase Auth, PostgreSQL, Realtime |
 | 정적 배포·도메인 | Vite 빌드, Vercel, Route 53의 서브도메인 |
 
 운영 사이트의 지휘자 권한은 Supabase에 등록한 계정으로 판단합니다. 연습 구간은 데이터베이스에 저장되고, 로그인하지 않은 사용자는 구간을 볼 수만 있습니다. Vercel 환경 변수 설정과 데이터베이스 준비는 [배포 문서](DEPLOY.md)에 정리했습니다.
 
-곡을 바꿀 때는 `public/media/video`와 `public/media/audio`에 다섯 파트 파일을 넣고 [`public/tracks.json`](public/tracks.json)의 곡 ID·파일 경로·길이를 수정합니다. 파트 간 시작 지점과 길이를 맞춰야 합니다. 운영 데이터베이스의 곡 ID와 길이도 함께 맞춰야 하며, 자세한 주의사항은 배포 문서를 참고하세요.
+곡을 바꿀 때는 `public/media/video`에 공통 무음 악보 영상 하나를, `public/media/audio`에 다섯 파트 MP3를 넣고 [`public/tracks.json`](public/tracks.json)의 곡 ID·파일 경로·길이를 수정합니다. 다섯 파트의 `videoFile`은 같은 공통 영상을 가리키고 `audioFile`만 파트별로 달라야 합니다. 모든 MP3와 영상의 시작 지점·길이를 맞춰야 하며, 운영 데이터베이스의 곡 ID와 길이도 함께 맞춰야 합니다.
 
 프로젝트를 진행하며 겪은 문제와 시도는 [개발 경험 정리](EXPERIENCE.md)에, 공동 재생 레이턴시의 원인·BeatSync 참고 내용·해결 구조·진단 순서는 [트러블슈팅 문서](TROUBLESHOOTING.md)에 기록했습니다.

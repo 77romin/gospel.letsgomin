@@ -1,7 +1,8 @@
 import { SharedAudioEngine } from './shared-audio.js';
 
 const $ = id => document.getElementById(id);
-const audio = $('audio');
+const video = $('video');
+const soloAudio = $('soloAudio');
 const sharedAudio = new SharedAudioEngine();
 const sharedActionLeadMs = 1500;
 const names = { choir: ['합창', 'CHOIR'], soprano: ['소프라노', 'SOPRANO'], alto: ['알토', 'ALTO'], tenor: ['테너', 'TENOR'], baritone: ['바리톤', 'BARITONE'] };
@@ -16,7 +17,8 @@ let startTimer = null;
 let startPlanId = 0;
 let countdownUntilMs = null;
 let reconnectTimer = null;
-let sourceFile = null;
+let videoFile = null;
+let soloSourceFile = null;
 let sharedSourceFile = null;
 let sharedReadyFile = null;
 let sharedLoadPromise = null;
@@ -82,10 +84,10 @@ function showToast(message) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => box.classList.remove('show'), 3500);
 }
 function isSolo() { return mode === 'solo'; }
-function displayedPosition() { return isSolo() && Number.isFinite(audio.currentTime) ? audio.currentTime : projectedPosition(); }
+function displayedPosition() { return isSolo() && Number.isFinite(soloAudio.currentTime) ? soloAudio.currentTime : projectedPosition(); }
 function updateVideoDisplay() {
-  const hasVideo = audio.readyState >= 1 && audio.videoWidth > 0;
-  const showVideo = videoOpen && !!sourceFile && (audio.readyState < 1 || hasVideo);
+  const hasVideo = video.readyState >= 1 && video.videoWidth > 0;
+  const showVideo = videoOpen && !!videoFile && (video.readyState < 1 || hasVideo);
   $('showVideoBtn').disabled = !hasVideo;
   $('showVideoBtn').textContent = showVideo ? 'Hide Video' : 'Show Video';
   $('showVideoBtn').setAttribute('aria-expanded', String(showVideo));
@@ -200,41 +202,58 @@ function connect() {
     if (socket !== ws) return;
     setConnection(false);
     clearTimeout(startTimer);
-    audio.pause();
+    soloAudio.pause();
+    video.pause();
     reconnectTimer = setTimeout(connect, 1600);
   });
 }
-function prepareAudio() {
+function prepareAudio({ soloPosition = null, resumeSolo = null } = {}) {
   const track = state?.tracks?.[part] || null;
-  const file = track?.videoFile || track?.file || null;
+  const nextVideoFile = track?.videoFile || track?.file || null;
   const nextSharedSource = track?.audioFile || null;
-  const sourceChanged = file !== sourceFile || nextSharedSource !== sharedSourceFile;
-  if (!sourceChanged) {
-    audio.muted = !isSolo();
-    if (!isSolo() && sharedSourceFile) prepareSharedAudio().catch(() => {});
-    return false;
+  const videoChanged = nextVideoFile !== videoFile;
+  const audioChanged = nextSharedSource !== sharedSourceFile;
+
+  if (videoChanged) {
+    videoFile = nextVideoFile;
+    video.pause();
+    if (videoFile) {
+      video.src = videoFile;
+      video.load();
+    } else {
+      video.removeAttribute('src');
+      video.load();
+    }
   }
-  const soloPosition = isSolo() ? audio.currentTime : null;
-  const resumeSolo = isSolo() && joined && !audio.paused;
-  sourceFile = file;
-  sharedSourceFile = nextSharedSource;
-  sharedReadyFile = null;
-  sharedLoadPromise = null;
-  sharedAudio.stop();
-  audio.pause();
-  audio.muted = !isSolo();
-  if (file) {
-    if (soloPosition !== null) audio.addEventListener('loadedmetadata', () => {
-      if (sourceFile !== file) return;
-      audio.currentTime = Math.min(soloPosition, audio.duration || soloPosition);
-      if (resumeSolo) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.'));
-    }, { once: true });
-    audio.src = file; audio.load();
+
+  if (audioChanged) {
+    sharedSourceFile = nextSharedSource;
+    sharedReadyFile = null;
+    sharedLoadPromise = null;
+    sharedAudio.stop();
   }
-  else { audio.removeAttribute('src'); audio.load(); }
+
+  if (isSolo() && nextSharedSource && (nextSharedSource !== soloSourceFile || soloPosition !== null)) {
+    const position = Number.isFinite(soloPosition) ? soloPosition : soloAudio.currentTime;
+    const shouldResume = resumeSolo ?? (soloSourceFile !== null && !soloAudio.paused);
+    soloAudio.pause();
+    if (nextSharedSource !== soloSourceFile) {
+      soloSourceFile = nextSharedSource;
+      soloAudio.addEventListener('loadedmetadata', () => {
+        if (soloSourceFile !== nextSharedSource) return;
+        try { soloAudio.currentTime = Math.min(position, soloAudio.duration || position); } catch {}
+        if (shouldResume) soloAudio.play().catch(() => showToast('재생 버튼을 다시 눌러 주세요.'));
+      }, { once: true });
+      soloAudio.src = nextSharedSource;
+      soloAudio.load();
+    } else {
+      try { soloAudio.currentTime = Math.min(position, soloAudio.duration || position); } catch {}
+      if (shouldResume) soloAudio.play().catch(() => showToast('재생 버튼을 다시 눌러 주세요.'));
+    }
+  }
   if (!isSolo() && sharedSourceFile) prepareSharedAudio().catch(() => {});
   updateVideoDisplay();
-  return true;
+  return videoChanged || audioChanged;
 }
 
 function prepareSharedAudio() {
@@ -270,16 +289,15 @@ async function beginAudio(expectedRevision = state?.transport.revision, expected
     lastStartTiming = { revision: expectedRevision, scheduledAtMs,
       requestedAtMs: Date.now() + offsetMs, playingAtMs: scheduledAtMs };
     countdownUntilMs = scheduledAtMs;
-    audio.muted = true;
-    try { audio.currentTime = Math.max(0, targetPosition); } catch {}
+    try { video.currentTime = Math.max(0, targetPosition); } catch {}
     clearTimeout(startTimer);
     const startVideo = async () => {
       if (!stillCurrent()) return;
       countdownUntilMs = null;
       render();
       try {
-        await audio.play();
-        if (!stillCurrent()) audio.pause();
+        await video.play();
+        if (!stillCurrent()) video.pause();
       } catch {}
     };
     startTimer = setTimeout(startVideo, Math.max(0, scheduledAtMs - (Date.now() + offsetMs)));
@@ -289,7 +307,6 @@ function syncAudio() {
   const sourceChanged = prepareAudio();
   if (isSolo()) {
     sharedAudio.stop();
-    audio.muted = false;
     return;
   }
   if (!state) return;
@@ -302,7 +319,7 @@ function syncAudio() {
       clearTimeout(startTimer);
       countdownUntilMs = null;
       sharedAudio.scheduleStop({ serverTimeMs: t.stopAtMs, clockOffsetMs: offsetMs });
-      startTimer = setTimeout(() => audio.pause(), Math.max(0, t.stopAtMs - (Date.now() + offsetMs)));
+      startTimer = setTimeout(() => video.pause(), Math.max(0, t.stopAtMs - (Date.now() + offsetMs)));
     }
     lastRevision = t.revision;
     return;
@@ -312,9 +329,9 @@ function syncAudio() {
     countdownUntilMs = null;
     clearTimeout(startTimer);
     sharedAudio.stop();
-    if (!audio.paused) audio.pause();
-    if (sourceFile && audio.readyState >= 1 && !t.playing && (t.revision !== lastRevision || sourceChanged)) {
-      try { audio.currentTime = t.positionSec; } catch {}
+    if (!video.paused) video.pause();
+    if (videoFile && video.readyState >= 1 && !t.playing && (t.revision !== lastRevision || sourceChanged)) {
+      try { video.currentTime = t.positionSec; } catch {}
     }
     lastRevision = t.revision;
     return;
@@ -323,7 +340,7 @@ function syncAudio() {
     clearTimeout(startTimer);
     countdownUntilMs = null;
     sharedAudio.stop();
-    audio.pause();
+    video.pause();
     const scheduledAtMs = t.startAtMs > now ? t.startAtMs : now + sharedActionLeadMs;
     const targetPosition = t.startAtMs > now ? t.positionSec :
       Math.min(timelineDuration(), t.positionSec + (scheduledAtMs - t.startAtMs) / 1000);
@@ -360,7 +377,8 @@ function render() {
     tab.setAttribute('aria-selected', String(active));
   }
   const track = state.tracks[part];
-  const trackReady = solo ? !!track : !!track?.audioFile && sharedReadyFile === track.audioFile;
+  const trackReady = solo ? !!track?.audioFile && soloSourceFile === track.audioFile && soloAudio.readyState >= 1 :
+    !!track?.audioFile && sharedReadyFile === track.audioFile;
   const sharedLocked = !solo && !joined;
   $('trackStatus').textContent = trackReady ? '● 음원 준비 완료' : (track ? '음원 준비 중' : '음원 준비 전');
   $('trackStatus').classList.toggle('ready', trackReady);
@@ -368,9 +386,9 @@ function render() {
   $('practiceLock').classList.toggle('hidden', !sharedLocked);
   $('practiceContent').inert = sharedLocked;
   $('practiceContent').setAttribute('aria-hidden', String(sharedLocked));
-  $('playBtn').textContent = solo ? (audio.paused ? '▶' : 'Ⅱ') : (state.transport.playing ? 'Ⅱ' : '▶');
+  $('playBtn').textContent = solo ? (soloAudio.paused ? '▶' : 'Ⅱ') : (state.transport.playing ? 'Ⅱ' : '▶');
   $('playBtn').disabled = conductor && !solo && !joined;
-  $('playBtn').setAttribute('aria-label', solo ? (audio.paused ? '재생' : '일시정지') : (state.transport.playing ? '일시정지' : '재생'));
+  $('playBtn').setAttribute('aria-label', solo ? (soloAudio.paused ? '재생' : '일시정지') : (state.transport.playing ? '일시정지' : '재생'));
   updatePlaybackSignal();
   $('joinBtn').classList.toggle('hidden', solo || !joined);
   $('joinBtn').disabled = solo || !joined;
@@ -394,7 +412,7 @@ function renderSegments() {
       jump.type = 'button';
       jump.setAttribute('aria-label', `${segment.label} 시작 ${formatTime(segment.startSec)}로 이동`);
       jump.addEventListener('click', () => {
-        if (isSolo()) { audio.currentTime = segment.startSec; tick(); }
+        if (isSolo()) { soloAudio.currentTime = segment.startSec; tick(); }
         else send({ type: 'seek', positionSec: segment.startSec });
       });
     }
@@ -420,12 +438,12 @@ function renderSegments() {
   }
 }
 function timelineDuration() {
-  return state?.tracks?.[part]?.durationSec || (Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 60);
+  return state?.tracks?.[part]?.durationSec || (Number.isFinite(soloAudio.duration) && soloAudio.duration > 0 ? soloAudio.duration : 60);
 }
 function renderTimeline() {
   if (!state) return;
   const duration = timelineDuration();
-  $('duration').textContent = formatTime(Number.isFinite(audio.duration) ? audio.duration : duration);
+  $('duration').textContent = formatTime(Number.isFinite(soloAudio.duration) ? soloAudio.duration : duration);
   const labels = $('timelineLabels'); const overlays = $('segmentOverlays'); labels.replaceChildren(); overlays.replaceChildren();
   for (const segment of state.segments) {
     const left = Math.min(100, segment.startSec / duration * 100); const width = Math.max(0, Math.min(100 - left, (segment.endSec - segment.startSec) / duration * 100));
@@ -447,12 +465,17 @@ function tick() {
   if (cloud && !isSolo() && state.role === 'conductor' && joined && state.transport.playing && pos >= duration) {
     if (!endingRequested) { endingRequested = true; send({ type: 'pause' }); }
   } else endingRequested = false;
-  if (!isSolo() && joined && state.transport.playing && Date.now() + offsetMs >= state.transport.startAtMs && audio.readyState >= 1) {
-    audio.muted = true;
-    if (Math.abs(audio.currentTime - pos) > 0.3) {
-      try { audio.currentTime = pos; } catch {}
+  const now = Date.now() + offsetMs;
+  const sharedStopPending = !state.transport.playing && Number.isFinite(state.transport.stopAtMs) && now < state.transport.stopAtMs;
+  const videoShouldPlay = isSolo() ? !soloAudio.paused && !soloAudio.ended :
+    joined && (sharedStopPending || (state.transport.playing && now >= state.transport.startAtMs));
+  if (videoShouldPlay && video.readyState >= 1) {
+    if (Math.abs(video.currentTime - pos) > 0.3) {
+      try { video.currentTime = pos; } catch {}
     }
-    if (audio.paused) audio.play().catch(() => {});
+    if (video.paused) video.play().catch(() => {});
+  } else if (!video.paused) {
+    video.pause();
   }
   const pct = Math.max(0, Math.min(100, pos / duration * 100));
   $('timelineProgress').style.width = `${pct}%`; $('timelineThumb').style.left = `${pct}%`;
@@ -461,11 +484,11 @@ function tick() {
   $('timeline').setAttribute('aria-valuemax', String(Math.floor(duration)));
   if (syncDebug && syncDebugBox) {
     const diagnostics = sharedAudio.getDiagnostics();
-    const devicePosition = isSolo() ? audio.currentTime : diagnostics.audiblePosition;
+    const devicePosition = isSolo() ? soloAudio.currentTime : diagnostics.audiblePosition;
     const difference = Number.isFinite(devicePosition) ? devicePosition - pos : null;
     const startDelay = lastStartTiming?.revision === state.transport.revision && lastStartTiming.playingAtMs !== null ?
       `${Math.round(lastStartTiming.playingAtMs - lastStartTiming.scheduledAtMs)}ms` : '-';
-    syncDebugBox.textContent = `서버 기준 ${pos.toFixed(2)}초\n이 기기 음원 ${Number.isFinite(devicePosition) ? devicePosition.toFixed(2) : '-'}초\n차이 ${difference === null ? '-' : difference.toFixed(2) + '초'}\n시작 지연 ${startDelay}\n상태 ${isSolo() ? (audio.paused ? '정지' : '재생') : diagnostics.state}\nbase/output ${diagnostics.baseLatency ?? '-'} / ${diagnostics.outputLatency ?? '-'}\n마지막 이벤트 ${lastMediaEvent}\n명령 버전 ${state.transport.revision}\n시계 보정 ${offsetMs.toFixed(0)}ms`;
+    syncDebugBox.textContent = `서버 기준 ${pos.toFixed(2)}초\n이 기기 음원 ${Number.isFinite(devicePosition) ? devicePosition.toFixed(2) : '-'}초\n차이 ${difference === null ? '-' : difference.toFixed(2) + '초'}\n시작 지연 ${startDelay}\n상태 ${isSolo() ? (soloAudio.paused ? '정지' : '재생') : diagnostics.state}\nbase/output ${diagnostics.baseLatency ?? '-'} / ${diagnostics.outputLatency ?? '-'}\n마지막 이벤트 ${lastMediaEvent}\n명령 버전 ${state.transport.revision}\n시계 보정 ${offsetMs.toFixed(0)}ms`;
   }
 }
 
@@ -473,22 +496,21 @@ $('sharedMode').addEventListener('click', () => setMode('shared'));
 $('soloMode').addEventListener('click', () => setMode('solo'));
 async function setMode(nextMode) {
   if (!['shared', 'solo'].includes(nextMode) || mode === nextMode) return;
-  const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing;
-  const position = isSolo() ? audio.currentTime : projectedPosition();
+  const wasPlaying = isSolo() ? !soloAudio.paused : state?.transport.playing;
+  const position = isSolo() ? soloAudio.currentTime : projectedPosition();
   if (!isSolo() && joined) {
     joined = false;
     syncConductorParticipation();
   }
-  audio.pause();
+  soloAudio.pause();
+  video.pause();
   sharedAudio.stop();
   mode = nextMode;
   if (!isSolo()) joined = false;
-  audio.muted = !isSolo();
-  if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} }
-  prepareAudio();
+  prepareAudio({ soloPosition: position, resumeSolo: isSolo() && wasPlaying });
+  if (Number.isFinite(position)) { try { video.currentTime = position; } catch {} }
   render();
   syncAudio();
-  if (isSolo() && wasPlaying) audio.play().catch(() => showToast('재생 버튼을 다시 눌러 주세요.'));
   if (!isSolo()) {
     try { await sharedAudio.unlock(); await prepareSharedAudio(); }
     catch (error) { showToast(error.message || '공동 재생 음원을 준비하지 못했습니다.'); }
@@ -504,7 +526,7 @@ async function togglePracticeParticipation() {
     syncConductorParticipation();
     clearTimeout(startTimer);
     sharedAudio.stop();
-    audio.pause();
+    video.pause();
     render();
     showToast('연습에서 나왔습니다. 소리가 꺼졌습니다.');
     return;
@@ -531,18 +553,18 @@ async function togglePracticeParticipation() {
 $('joinBtn').addEventListener('click', togglePracticeParticipation);
 $('joinOverlayBtn').addEventListener('click', togglePracticeParticipation);
 $('volumeControl').addEventListener('input', event => {
-  audio.volume = Number(event.target.value);
-  sharedAudio.setVolume(audio.volume);
-  $('volumeValue').textContent = Math.round(audio.volume * 100) + '%';
+  soloAudio.volume = Number(event.target.value);
+  sharedAudio.setVolume(soloAudio.volume);
+  $('volumeValue').textContent = Math.round(soloAudio.volume * 100) + '%';
 });
 $('playBtn').addEventListener('click', async () => {
   if (!isSolo()) return send({ type: state?.transport.playing ? 'pause' : 'play' });
-  if (!state || !sourceFile) return showToast('음원을 불러오는 중입니다. 잠시 후 다시 눌러 주세요.');
+  if (!state || !soloSourceFile) return showToast('음원을 불러오는 중입니다. 잠시 후 다시 눌러 주세요.');
   const firstPlay = !joined;
   if (firstPlay) { joined = true; syncConductorParticipation(); }
   try {
-    if (audio.paused) await audio.play();
-    else audio.pause();
+    if (soloAudio.paused) await soloAudio.play();
+    else soloAudio.pause();
     render();
   } catch {
     if (firstPlay) joined = false;
@@ -550,12 +572,12 @@ $('playBtn').addEventListener('click', async () => {
     showToast('재생할 수 없습니다. 재생 버튼을 다시 눌러 주세요.');
   }
 });
-$('backBtn').addEventListener('click', () => { const position = Math.max(0, displayedPosition() - 10); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position }); });
-$('forwardBtn').addEventListener('click', () => { const position = Math.min(timelineDuration(), displayedPosition() + 10); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position }); });
+$('backBtn').addEventListener('click', () => { const position = Math.max(0, displayedPosition() - 10); if (isSolo()) { soloAudio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position }); });
+$('forwardBtn').addEventListener('click', () => { const position = Math.min(timelineDuration(), displayedPosition() + 10); if (isSolo()) { soloAudio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position }); });
 $('timeline').addEventListener('click', event => {
   if (state?.role !== 'conductor' && !isSolo()) return;
   const rect = $('timeline').getBoundingClientRect();
-  const position = Math.max(0, Math.min(timelineDuration(), (event.clientX - rect.left) / rect.width * timelineDuration())); if (isSolo()) { audio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position });
+  const position = Math.max(0, Math.min(timelineDuration(), (event.clientX - rect.left) / rect.width * timelineDuration())); if (isSolo()) { soloAudio.currentTime = position; tick(); } else send({ type: 'seek', positionSec: position });
 });
 document.addEventListener('keydown', event => {
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
@@ -563,26 +585,22 @@ document.addEventListener('keydown', event => {
   if (target instanceof HTMLElement && (target.isContentEditable || target.closest('dialog[open]') || (target.matches('input, textarea, select') && target !== $('volumeControl')))) return;
   if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
     event.preventDefault();
-    audio.volume = Math.max(0, Math.min(1, Math.round((audio.volume + (event.key === 'ArrowUp' ? 0.05 : -0.05)) * 100) / 100));
-    sharedAudio.setVolume(audio.volume);
-    $('volumeControl').value = String(audio.volume);
-    $('volumeValue').textContent = Math.round(audio.volume * 100) + '%';
+    soloAudio.volume = Math.max(0, Math.min(1, Math.round((soloAudio.volume + (event.key === 'ArrowUp' ? 0.05 : -0.05)) * 100) / 100));
+    sharedAudio.setVolume(soloAudio.volume);
+    $('volumeControl').value = String(soloAudio.volume);
+    $('volumeValue').textContent = Math.round(soloAudio.volume * 100) + '%';
     return;
   }
   if (!state || (state.role !== 'conductor' && !isSolo())) return;
   event.preventDefault();
   const positionSec = Math.max(0, Math.min(timelineDuration(), displayedPosition() + (event.key === 'ArrowRight' ? 5 : -5)));
-  if (isSolo()) { audio.currentTime = positionSec; tick(); } else send({ type: 'seek', positionSec });
+  if (isSolo()) { soloAudio.currentTime = positionSec; tick(); } else send({ type: 'seek', positionSec });
 });
-audio.addEventListener('loadedmetadata', () => { updateVideoDisplay(); renderTimeline(); tick(); if (state?.transport.playing && joined && !isSolo()) syncAudio(); });
-audio.addEventListener('play', render);
-audio.addEventListener('pause', render);
-audio.addEventListener('ended', render);
-audio.addEventListener('playing', () => {
-  if (!isSolo()) return;
-  if (lastStartTiming?.revision === state?.transport.revision && lastStartTiming.playingAtMs === null)
-    lastStartTiming.playingAtMs = Date.now() + offsetMs;
-});
+video.addEventListener('loadedmetadata', () => { updateVideoDisplay(); renderTimeline(); tick(); if (state?.transport.playing && joined && !isSolo()) syncAudio(); });
+soloAudio.addEventListener('loadedmetadata', () => { renderTimeline(); tick(); render(); });
+soloAudio.addEventListener('play', render);
+soloAudio.addEventListener('pause', render);
+soloAudio.addEventListener('ended', () => { video.pause(); render(); });
 if (syncDebug) {
   syncDebugBox = document.createElement('pre');
   syncDebugBox.setAttribute('aria-label', '재생 동기화 진단');
@@ -593,11 +611,12 @@ if (syncDebug) {
   });
   document.body.append(syncDebugBox);
   for (const eventName of ['playing', 'waiting', 'seeking', 'seeked', 'canplay', 'pause']) {
-    audio.addEventListener(eventName, () => { lastMediaEvent = eventName; });
+    video.addEventListener(eventName, () => { lastMediaEvent = `video:${eventName}`; });
+    soloAudio.addEventListener(eventName, () => { lastMediaEvent = `audio:${eventName}`; });
   }
 }
 $('showVideoBtn').addEventListener('click', () => {
-  if (!audio.videoWidth) return showToast('이 음원에는 영상이 없습니다.');
+  if (!video.videoWidth) return showToast('악보 영상을 불러오는 중입니다.');
   videoOpen = !videoOpen;
   updateVideoDisplay();
 });
@@ -620,13 +639,13 @@ $('loginForm').addEventListener('submit', async event => {
 $('logout').addEventListener('click', async () => {
   try {
     if (cloud) await cloud.logout(); else await fetch('/api/logout', { method: 'POST' });
-    joined = false; sharedAudio.stop(); audio.pause(); connect(); showToast('로그아웃했습니다.');
+    joined = false; sharedAudio.stop(); soloAudio.pause(); video.pause(); connect(); showToast('로그아웃했습니다.');
   } catch (error) { showToast(error.message); }
 });
 for (const [buttonId, field] of [['captureStart', 'startSec'], ['captureEnd', 'endSec']]) {
   $(buttonId).addEventListener('click', () => {
     if (state?.role !== 'conductor') return;
-    if (isSolo() ? !audio.paused : state?.transport.playing) return showToast('음악을 일시정지한 뒤 기록해 주세요.');
+    if (isSolo() ? !soloAudio.paused : state?.transport.playing) return showToast('음악을 일시정지한 뒤 기록해 주세요.');
     segmentDraft[field] = Math.max(0, Math.min(timelineDuration(), displayedPosition()));
     updateDraftView();
   });

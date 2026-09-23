@@ -48,13 +48,13 @@ BeatSync는 Bun·Next.js·WebSocket 방 구조, coded probe pair, 동적 RTT 버
 
 ### 음원과 영상을 분리
 
-기존 MP4 하나가 화면과 소리를 모두 담당하던 구조를 다음처럼 분리했다.
+기존 파트별 MP4가 화면과 소리를 함께 담당하던 구조를 다음처럼 분리했다.
 
-- `public/media/video/*.mp4`: 악보 영상 표시 전용
-- `public/media/audio/*.mp3`: Web Audio 다운로드·디코딩·출력 전용
-- `public/tracks.json`: 파트별 `videoFile`, `audioFile`, `durationSec`
+- `public/media/video/navigator-score.mp4`: 모든 파트가 공유하는 무음 악보 영상
+- `public/media/audio/*.mp3`: 파트별 소리 전용
+- `public/tracks.json`: 모든 파트의 같은 `videoFile`, 서로 다른 `audioFile`, 같은 `durationSec`
 
-공동 연습에서는 MP4 영상을 음소거하고, 실제 소리는 미리 디코딩된 MP3 `AudioBuffer`에서 낸다. 재생 명령 뒤에 MP4가 오디오를 준비하느라 생기는 기기별 시작 지연을 제거하기 위한 분리다.
+두 모드 모두 MP4 영상을 음소거하고 실제 소리는 MP3에서 낸다. 혼자 연습은 브라우저 `<audio>`로 MP3를 재생하고, 공동 연습은 미리 디코딩된 MP3 `AudioBuffer`를 사용한다. 파트 변경 시 영상 소스를 교체하지 않으므로 검은 화면과 중복 영상 다운로드를 피하면서, 공동 재생에서는 Web Audio의 정밀 예약을 유지한다.
 
 ### 서버 시계 보정
 
