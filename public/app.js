@@ -3,6 +3,7 @@ import { SharedAudioEngine } from './shared-audio.js';
 const $ = id => document.getElementById(id);
 const audio = $('audio');
 const sharedAudio = new SharedAudioEngine();
+const sharedActionLeadMs = 1500;
 const names = { choir: ['합창', 'CHOIR'], soprano: ['소프라노', 'SOPRANO'], alto: ['알토', 'ALTO'], tenor: ['테너', 'TENOR'], baritone: ['바리톤', 'BARITONE'] };
 let part = localStorage.getItem('gospel-part') || 'choir';
 let mode = 'solo';
@@ -296,7 +297,7 @@ function syncAudio() {
     countdownUntilMs = null;
     sharedAudio.stop();
     audio.pause();
-    const scheduledAtMs = t.startAtMs > now ? t.startAtMs : now + 3000;
+    const scheduledAtMs = t.startAtMs > now ? t.startAtMs : now + sharedActionLeadMs;
     const targetPosition = t.startAtMs > now ? t.positionSec :
       Math.min(timelineDuration(), t.positionSec + (scheduledAtMs - t.startAtMs) / 1000);
     countdownUntilMs = scheduledAtMs;

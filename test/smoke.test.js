@@ -83,10 +83,10 @@ test('conductor controls shared state while listeners remain read-only', async t
   assert.equal((await waitForMessage(listener, data => data.type === 'state' && data.conductorParticipating)).conductorParticipating, true);
   conductor.send(JSON.stringify({ type: 'play' }));
   const playing = await waitForMessage(listener, data => data.type === 'state' && data.transport.playing);
-  assert.ok(playing.transport.startAtMs - playing.serverTimeMs >= 2900, 'shared play has a three-second preparation window');
+  assert.ok(playing.transport.startAtMs - playing.serverTimeMs >= 1400, 'shared play has a 1.5-second preparation window');
   conductor.send(JSON.stringify({ type: 'pause' }));
   const paused = await waitForMessage(listener, data => data.type === 'state' && !data.transport.playing);
-  assert.ok(paused.transport.stopAtMs - paused.serverTimeMs >= 2900, 'shared pause has a three-second preparation window');
+  assert.ok(paused.transport.stopAtMs - paused.serverTimeMs >= 1400, 'shared pause has a 1.5-second preparation window');
   assert.ok(paused.transport.positionSec < 0.25, 'pause during countdown only advances by the command transit time');
   conductor.send(JSON.stringify({ type: 'play' }));
   await waitForMessage(listener, data => data.type === 'state' && data.transport.playing);

@@ -49,9 +49,9 @@
 1. 재생 중 주기적으로 `currentTime`을 강제로 옮기던 동작을 없애고, 참여·재생·일시정지·위치 이동 명령이 왔을 때만 서버 상태를 반영했다. 이 뒤 끊김은 사라졌지만 시간 차이는 남았다.
 2. 서버 시각을 여러 번 측정해 왕복 시간이 가장 짧은 값을 사용하고, 실제 `playing` 및 `seeked` 이벤트 뒤에 한 차례 위치를 보정했다.
 3. 짧은 배속 재생으로 뒤처진 시간을 따라잡는 방법도 시도했으나 사용자가 듣는 차이를 해결하지 못했다.
-4. 지휘자 재생과 재생 중 위치 이동을 3초 뒤로 예약하고, 그 전에 음원 로딩과 탐색을 마치는 방식도 구현했다. 늦게 참여한 청취자에게도 로컬 준비 시간을 주었다.
+4. 지휘자 재생과 재생 중 위치 이동을 미래 시각으로 예약하고, 그 전에 음원 로딩과 탐색을 마치는 방식도 구현했다. 초기 3초에서 실기기 확인 후 1.5초로 줄여 반응성과 준비 시간을 절충했다.
 
-**해결:** [BeatSync](https://github.com/freeman-jiang/beatsync)의 NTP식 시계 추정, 미래 서버 시각 예약, 디코딩된 `AudioBuffer`의 오디오 시계 예약 패턴을 참고했다. MP4는 무음 영상으로만 사용하고 MP3를 미리 디코딩한 뒤 `AudioBufferSourceNode.start()`와 `stop()`을 3초 뒤의 공통 시각에 예약했다. `AudioContext.getOutputTimestamp()`로 브라우저 성능 시계와 오디오 시계를 연결하고, 단일 AudioContext·keepalive·화면 복귀 복구도 추가했다. 자세한 재현 과정, 실패한 접근, 코드 경로와 남은 한계는 [레이턴시 트러블슈팅 문서](TROUBLESHOOTING.md)에 정리했다.
+**해결:** [BeatSync](https://github.com/freeman-jiang/beatsync)의 NTP식 시계 추정, 미래 서버 시각 예약, 디코딩된 `AudioBuffer`의 오디오 시계 예약 패턴을 참고했다. MP4는 무음 영상으로만 사용하고 MP3를 미리 디코딩한 뒤 `AudioBufferSourceNode.start()`와 `stop()`을 1.5초 뒤의 공통 시각에 예약했다. `AudioContext.getOutputTimestamp()`로 브라우저 성능 시계와 오디오 시계를 연결하고, 단일 AudioContext·keepalive·화면 복귀 복구도 추가했다. 자세한 재현 과정, 실패한 접근, 코드 경로와 남은 한계는 [레이턴시 트러블슈팅 문서](TROUBLESHOOTING.md)에 정리했다.
 
 **현재 결과:** Vercel `dev` Preview에서 컴퓨터와 iPhone의 내장 스피커를 사용했을 때 체감 가능한 레이턴시가 보이지 않았다. Bluetooth 무선 이어폰은 아직 검증하지 않았으므로 별도 테스트가 필요하다.
 

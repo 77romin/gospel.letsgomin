@@ -1,5 +1,5 @@
 -- Run once in Supabase SQL Editor for an existing deployment.
--- Schedules shared play, pause, and playing seeks three seconds ahead.
+-- Legacy filename: schedules shared play, pause, and playing seeks 1.5 seconds ahead.
 alter table public.choir_state alter column transport set default
   '{"playing":false,"positionSec":0,"startAtMs":null,"stopAtMs":null,"revision":0}';
 update public.choir_state
@@ -75,12 +75,12 @@ begin
     if not v_playing then
       if v_position >= v_state.duration_sec then v_position := 0; end if;
       v_state.transport := jsonb_build_object('playing', true, 'positionSec', v_position,
-        'startAtMs', v_now_ms + 3000, 'stopAtMs', null, 'revision', (v_state.transport->>'revision')::integer + 1);
+        'startAtMs', v_now_ms + 1500, 'stopAtMs', null, 'revision', (v_state.transport->>'revision')::integer + 1);
     end if;
   elsif v_type = 'pause' or v_type = 'seek' then
     if v_playing then
       v_position := least(v_state.duration_sec, v_position + greatest(0,
-        (v_now_ms + case when v_type = 'pause' then 3000 else 0 end -
+        (v_now_ms + case when v_type = 'pause' then 1500 else 0 end -
          (v_state.transport->>'startAtMs')::numeric) / 1000));
     end if;
     if v_type = 'seek' then
@@ -93,8 +93,8 @@ begin
       end if;
     end if;
     v_state.transport := jsonb_build_object('playing', v_type = 'seek' and v_playing,
-      'positionSec', v_position, 'startAtMs', case when v_type = 'seek' and v_playing then v_now_ms + 3000 else null end,
-      'stopAtMs', case when v_type = 'pause' then v_now_ms + 3000 else null end,
+      'positionSec', v_position, 'startAtMs', case when v_type = 'seek' and v_playing then v_now_ms + 1500 else null end,
+      'stopAtMs', case when v_type = 'pause' then v_now_ms + 1500 else null end,
       'revision', (v_state.transport->>'revision')::integer + 1);
   elsif v_type = 'segment:add' or v_type = 'segment:update' then
     v_label := btrim(p_command->>'label');

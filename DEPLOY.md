@@ -46,7 +46,7 @@ npm run build
 
 ## 운영상 주의
 
-기존 Supabase 프로젝트에서 같이 연습을 배포하기 전에 **SQL Editor → New query**에 [`supabase/three-second-countdown.sql`](supabase/three-second-countdown.sql) 전체 내용을 붙여 넣고 실행해야 합니다. 이 파일은 기존 곡과 연습 구간을 유지하면서 `stopAtMs` 상태를 추가하고 재생·정지·재생 중 위치 이동을 3초 뒤 공통 시각에 실행하도록 함수를 갱신합니다. 운영 `choir_state.transport`에 `stopAtMs`가 없으면 아직 적용되지 않은 상태입니다.
+기존 Supabase 프로젝트에서 같이 연습을 배포하기 전에 **SQL Editor → New query**에 [`supabase/three-second-countdown.sql`](supabase/three-second-countdown.sql) 전체 내용을 붙여 넣고 실행해야 합니다. 파일명은 기존 안내와의 호환을 위해 유지했지만, 현재 스크립트는 기존 곡과 연습 구간을 보존하면서 `stopAtMs` 상태를 추가하고 재생·정지·재생 중 위치 이동을 1.5초 뒤 공통 시각에 실행하도록 함수를 갱신합니다. 운영 `choir_state.transport`에 `stopAtMs`가 없으면 아직 적용되지 않은 상태입니다.
 
 - Supabase Free 프로젝트는 1주일간 활동이 없으면 일시 중지될 수 있습니다.
 - 공동 재생을 다시 켤 경우 지휘자가 참여 해제·혼자 연습 전환·로그아웃을 하면 공동 재생이 즉시 멈춥니다. 인터넷 연결이 갑자기 끊기면 최대 약 30초 후 참여 기한이 만료되어 멈춥니다.

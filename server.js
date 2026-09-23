@@ -14,6 +14,7 @@ const dataDir = process.env.DATA_DIR || path.join(root, 'data');
 const stateFile = path.join(dataDir, 'state.json');
 const host = process.env.HOST || '0.0.0.0';
 const port = Number(process.env.PORT || 3000);
+const sharedActionLeadMs = 1500;
 const password = process.env.CONDUCTOR_PASSWORD || crypto.randomBytes(9).toString('base64url');
 const sessions = new Set();
 const wss = new WebSocketServer({ noServer: true });
@@ -188,13 +189,13 @@ server.on('upgrade', (req, socket, head) => {
           if (transport.playing) return;
           const duration = roomDuration();
           const positionSec = duration !== null && currentPosition() >= duration ? 0 : currentPosition();
-          transport = { playing: true, positionSec, startAtMs: now + 3000, stopAtMs: null, revision: transport.revision + 1 };
+          transport = { playing: true, positionSec, startAtMs: now + sharedActionLeadMs, stopAtMs: null, revision: transport.revision + 1 };
         } else if (msg.type === 'pause') {
-          const stopAtMs = now + 3000;
+          const stopAtMs = now + sharedActionLeadMs;
           transport = { playing: false, positionSec: currentPosition(stopAtMs), startAtMs: null, stopAtMs, revision: transport.revision + 1 };
         } else if (msg.type === 'seek') {
           if (!safeNumber(msg.positionSec)) throw new Error('재생 위치가 올바르지 않습니다.');
-          transport = { playing: transport.playing, positionSec: msg.positionSec, startAtMs: transport.playing ? now + 3000 : null, stopAtMs: null, revision: transport.revision + 1 };
+          transport = { playing: transport.playing, positionSec: msg.positionSec, startAtMs: transport.playing ? now + sharedActionLeadMs : null, stopAtMs: null, revision: transport.revision + 1 };
         } else if (msg.type === 'segment:add') {
           saved.segments.push({ id: crypto.randomUUID(), ...segmentFields(msg), highlighted: false, checked: false });
           saved.segments.sort((a, b) => a.startSec - b.startSec);
