@@ -39,7 +39,7 @@ try {
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
 }
-let transport = { playing: false, positionSec: 0, startAtMs: null, revision: 0 };
+let transport = { playing: false, positionSec: 0, startAtMs: null, stopAtMs: null, revision: 0 };
 let endTimer = null;
 function roomDuration() {
   const duration = catalog.tracks.choir?.durationSec || Object.values(catalog.tracks).find(track => track.durationSec)?.durationSec;
@@ -51,7 +51,7 @@ function scheduleEnd() {
   if (!transport.playing || duration === null) return;
   const delay = Math.max(0, transport.startAtMs - Date.now() + (duration - transport.positionSec) * 1000);
   endTimer = setTimeout(() => {
-    transport = { playing: false, positionSec: duration, startAtMs: null, revision: transport.revision + 1 };
+    transport = { playing: false, positionSec: duration, startAtMs: null, stopAtMs: null, revision: transport.revision + 1 };
     broadcast();
   }, delay);
 }
@@ -73,7 +73,7 @@ function currentPosition(now = Date.now()) {
 }
 function stopWhenUnattended() {
   if (activeConductors.size || !transport.playing) return;
-  transport = { playing: false, positionSec: Math.min(roomDuration() ?? Infinity, currentPosition()), startAtMs: null, revision: transport.revision + 1 };
+  transport = { playing: false, positionSec: Math.min(roomDuration() ?? Infinity, currentPosition()), startAtMs: null, stopAtMs: null, revision: transport.revision + 1 };
   scheduleEnd();
 }
 function snapshot(role = 'listener') {
@@ -188,12 +188,13 @@ server.on('upgrade', (req, socket, head) => {
           if (transport.playing) return;
           const duration = roomDuration();
           const positionSec = duration !== null && currentPosition() >= duration ? 0 : currentPosition();
-          transport = { playing: true, positionSec, startAtMs: now + 3000, revision: transport.revision + 1 };
+          transport = { playing: true, positionSec, startAtMs: now + 3000, stopAtMs: null, revision: transport.revision + 1 };
         } else if (msg.type === 'pause') {
-          transport = { playing: false, positionSec: currentPosition(now), startAtMs: null, revision: transport.revision + 1 };
+          const stopAtMs = now + 3000;
+          transport = { playing: false, positionSec: currentPosition(stopAtMs), startAtMs: null, stopAtMs, revision: transport.revision + 1 };
         } else if (msg.type === 'seek') {
           if (!safeNumber(msg.positionSec)) throw new Error('재생 위치가 올바르지 않습니다.');
-          transport = { playing: transport.playing, positionSec: msg.positionSec, startAtMs: transport.playing ? now + 3000 : null, revision: transport.revision + 1 };
+          transport = { playing: transport.playing, positionSec: msg.positionSec, startAtMs: transport.playing ? now + 3000 : null, stopAtMs: null, revision: transport.revision + 1 };
         } else if (msg.type === 'segment:add') {
           saved.segments.push({ id: crypto.randomUUID(), ...segmentFields(msg), highlighted: false, checked: false });
           saved.segments.sort((a, b) => a.startSec - b.startSec);

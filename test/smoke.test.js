@@ -80,12 +80,13 @@ test('conductor controls shared state while listeners remain read-only', async t
   assert.ok(playing.transport.startAtMs - playing.serverTimeMs >= 2900, 'shared play has a three-second preparation window');
   conductor.send(JSON.stringify({ type: 'pause' }));
   const paused = await waitForMessage(listener, data => data.type === 'state' && !data.transport.playing);
-  assert.equal(paused.transport.positionSec, 0, 'pause during countdown keeps starting position');
+  assert.ok(paused.transport.stopAtMs - paused.serverTimeMs >= 2900, 'shared pause has a three-second preparation window');
+  assert.ok(paused.transport.positionSec < 0.25, 'pause during countdown only advances by the command transit time');
   conductor.send(JSON.stringify({ type: 'play' }));
   await waitForMessage(listener, data => data.type === 'state' && data.transport.playing);
   conductor.send(JSON.stringify({ type: 'participation:set', active: false }));
   const unattended = await waitForMessage(listener, data => data.type === 'state' && !data.transport.playing && !data.conductorParticipating);
-  assert.equal(unattended.transport.positionSec, 0, 'leaving during countdown stops everyone');
+  assert.ok(unattended.transport.positionSec < 0.25, 'leaving during countdown stops everyone promptly');
   conductor.send(JSON.stringify({ type: 'play' }));
   assert.match((await waitForMessage(conductor, data => data.type === 'error')).message, /참여/);
   conductor.send(JSON.stringify({ type: 'participation:set', active: true }));
@@ -106,7 +107,7 @@ test('conductor controls shared state while listeners remain read-only', async t
   await waitForMessage(listener, data => data.type === 'state' && data.transport.playing);
   departing.close();
   const disconnected = await waitForMessage(listener, data => data.type === 'state' && !data.transport.playing && !data.conductorParticipating);
-  assert.equal(disconnected.transport.positionSec, 0, 'disconnecting the last participating conductor stops everyone');
+  assert.ok(disconnected.transport.positionSec < 0.25, 'disconnecting the last participating conductor stops everyone promptly');
   const logout = await fetch(`${base}/api/logout`, { method: 'POST', headers: { cookie } });
   assert.equal(logout.status, 200);
   conductor.send(JSON.stringify({ type: 'seek', positionSec: 0.5 }));

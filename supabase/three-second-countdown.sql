@@ -1,5 +1,11 @@
 -- Run once in Supabase SQL Editor for an existing deployment.
--- Schedules shared play and playing seeks three seconds ahead.
+-- Schedules shared play, pause, and playing seeks three seconds ahead.
+alter table public.choir_state alter column transport set default
+  '{"playing":false,"positionSec":0,"startAtMs":null,"stopAtMs":null,"revision":0}';
+update public.choir_state
+set transport = transport || '{"stopAtMs":null}'::jsonb
+where not (transport ? 'stopAtMs');
+
 create or replace function private.choir_command(p_command jsonb)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
@@ -34,7 +40,7 @@ begin
         (extract(epoch from coalesce(v_state.leader_until, v_now)) * 1000 -
          (v_state.transport->>'startAtMs')::numeric) / 1000));
       v_state.transport := jsonb_build_object('playing', false, 'positionSec', v_position,
-        'startAtMs', null, 'revision', (v_state.transport->>'revision')::integer + 1);
+        'startAtMs', null, 'stopAtMs', null, 'revision', (v_state.transport->>'revision')::integer + 1);
       v_playing := false;
     end if;
     v_state.leader_id := null;
@@ -53,7 +59,7 @@ begin
         v_position := least(v_state.duration_sec, v_position + greatest(0,
           (v_now_ms - (v_state.transport->>'startAtMs')::numeric) / 1000));
         v_state.transport := jsonb_build_object('playing', false, 'positionSec', v_position,
-          'startAtMs', null, 'revision', (v_state.transport->>'revision')::integer + 1);
+          'startAtMs', null, 'stopAtMs', null, 'revision', (v_state.transport->>'revision')::integer + 1);
       end if;
       v_state.leader_id := null;
       v_state.leader_until := null;
@@ -69,12 +75,13 @@ begin
     if not v_playing then
       if v_position >= v_state.duration_sec then v_position := 0; end if;
       v_state.transport := jsonb_build_object('playing', true, 'positionSec', v_position,
-        'startAtMs', v_now_ms + 3000, 'revision', (v_state.transport->>'revision')::integer + 1);
+        'startAtMs', v_now_ms + 3000, 'stopAtMs', null, 'revision', (v_state.transport->>'revision')::integer + 1);
     end if;
   elsif v_type = 'pause' or v_type = 'seek' then
     if v_playing then
       v_position := least(v_state.duration_sec, v_position + greatest(0,
-        (v_now_ms - (v_state.transport->>'startAtMs')::numeric) / 1000));
+        (v_now_ms + case when v_type = 'pause' then 3000 else 0 end -
+         (v_state.transport->>'startAtMs')::numeric) / 1000));
     end if;
     if v_type = 'seek' then
       if jsonb_typeof(p_command->'positionSec') <> 'number' then
@@ -87,6 +94,7 @@ begin
     end if;
     v_state.transport := jsonb_build_object('playing', v_type = 'seek' and v_playing,
       'positionSec', v_position, 'startAtMs', case when v_type = 'seek' and v_playing then v_now_ms + 3000 else null end,
+      'stopAtMs', case when v_type = 'pause' then v_now_ms + 3000 else null end,
       'revision', (v_state.transport->>'revision')::integer + 1);
   elsif v_type = 'segment:add' or v_type = 'segment:update' then
     v_label := btrim(p_command->>'label');

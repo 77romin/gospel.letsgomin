@@ -39,7 +39,7 @@ export function createCloud({ url, key, onState, onConnection, onError }) {
     let transport = row.transport;
     if (!active && transport.playing) {
       transport = { playing: false, positionSec: positionAt(transport, leaseUntilMs || now),
-        startAtMs: null, revision: transport.revision };
+        startAtMs: null, stopAtMs: null, revision: transport.revision };
     }
     return { type: 'state', serverTimeMs: now, role, title: catalog.title,
       tracks: catalog.tracks, segments: segments.map(s => ({

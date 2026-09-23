@@ -1,8 +1,11 @@
+import { SharedAudioEngine } from './shared-audio.js';
+
 const $ = id => document.getElementById(id);
 const audio = $('audio');
+const sharedAudio = new SharedAudioEngine();
 const names = { choir: ['합창', 'CHOIR'], soprano: ['소프라노', 'SOPRANO'], alto: ['알토', 'ALTO'], tenor: ['테너', 'TENOR'], baritone: ['바리톤', 'BARITONE'] };
 let part = localStorage.getItem('gospel-part') || 'choir';
-let mode = 'solo';
+let mode = localStorage.getItem('gospel-mode') === 'shared' ? 'shared' : 'solo';
 localStorage.setItem('gospel-mode', mode);
 if (!names[part]) part = 'choir';
 let state = null;
@@ -14,11 +17,13 @@ let startPlanId = 0;
 let countdownUntilMs = null;
 let reconnectTimer = null;
 let sourceFile = null;
+let sharedSourceFile = null;
+let sharedReadyFile = null;
+let sharedLoadPromise = null;
 let lastRevision = -1;
 let toastTimer = null;
 let videoOpen = true;
 let endingRequested = false;
-let pendingStartAlignment = null;
 let lastStartTiming = null;
 const syncDebug = new URLSearchParams(location.search).has('syncDebug');
 let lastMediaEvent = 'none';
@@ -76,15 +81,12 @@ function resetDraft() {
 function projectedPosition() {
   if (!state) return 0;
   const t = state.transport;
-  return t.playing ? Math.max(0, t.positionSec + Math.max(0, Date.now() + offsetMs - t.startAtMs) / 1000) : t.positionSec;
-}
-function waitForMedia(eventName, ready, timeoutMs = 2500) {
-  if (ready()) return Promise.resolve();
-  return new Promise(resolve => {
-    const finish = () => { audio.removeEventListener(eventName, finish); clearTimeout(timer); resolve(); };
-    const timer = setTimeout(finish, timeoutMs);
-    audio.addEventListener(eventName, finish, { once: true });
-  });
+  const now = Date.now() + offsetMs;
+  if (t.playing) return Math.max(0, t.positionSec + Math.max(0, now - t.startAtMs) / 1000);
+  if (Number.isFinite(t.stopAtMs) && now < t.stopAtMs) {
+    return Math.max(0, t.positionSec - (t.stopAtMs - now) / 1000);
+  }
+  return t.positionSec;
 }
 function send(message) {
   if (cloud) return cloud.send(message).catch(error => showToast(error.message));
@@ -148,12 +150,24 @@ function connect() {
   });
 }
 function prepareAudio() {
-  const file = state?.tracks?.[part]?.file || null;
-  if (file === sourceFile) return false;
+  const track = state?.tracks?.[part] || null;
+  const file = track?.videoFile || track?.file || null;
+  const nextSharedSource = track?.audioFile || null;
+  const sourceChanged = file !== sourceFile || nextSharedSource !== sharedSourceFile;
+  if (!sourceChanged) {
+    audio.muted = !isSolo();
+    if (!isSolo() && sharedSourceFile) prepareSharedAudio().catch(() => {});
+    return false;
+  }
   const soloPosition = isSolo() ? audio.currentTime : null;
   const resumeSolo = isSolo() && joined && !audio.paused;
   sourceFile = file;
+  sharedSourceFile = nextSharedSource;
+  sharedReadyFile = null;
+  sharedLoadPromise = null;
+  sharedAudio.stop();
   audio.pause();
+  audio.muted = !isSolo();
   if (file) {
     if (soloPosition !== null) audio.addEventListener('loadedmetadata', () => {
       if (sourceFile !== file) return;
@@ -163,50 +177,86 @@ function prepareAudio() {
     audio.src = file; audio.load();
   }
   else { audio.removeAttribute('src'); audio.load(); }
+  if (!isSolo() && sharedSourceFile) prepareSharedAudio().catch(() => {});
   updateVideoDisplay();
   return true;
 }
-async function beginAudio(expectedRevision = state?.transport.revision, expectedFile = sourceFile, expectedMode = mode,
+
+function prepareSharedAudio() {
+  const expectedFile = sharedSourceFile;
+  if (!expectedFile) return Promise.reject(new Error('공동 재생 음원이 없습니다.'));
+  if (sharedReadyFile === expectedFile) return Promise.resolve();
+  if (sharedLoadPromise) return sharedLoadPromise;
+  sharedLoadPromise = sharedAudio.load(expectedFile).then(() => {
+    if (sharedSourceFile !== expectedFile) return;
+    sharedReadyFile = expectedFile;
+    render();
+  }).catch(error => {
+    if (error?.name !== 'AbortError') showToast(error.message || '공동 재생 음원을 준비하지 못했습니다.');
+    throw error;
+  }).finally(() => {
+    if (sharedSourceFile === expectedFile) sharedLoadPromise = null;
+  });
+  return sharedLoadPromise;
+}
+
+async function beginAudio(expectedRevision = state?.transport.revision, expectedFile = sharedSourceFile, expectedMode = mode,
     scheduledAtMs = Date.now() + offsetMs, targetPosition = projectedPosition()) {
-  if (!joined || !sourceFile || !state?.transport.playing) return;
+  if (!joined || !expectedFile || !state?.transport.playing || isSolo()) return;
   const planId = ++startPlanId;
   const stillCurrent = () => planId === startPlanId && joined && mode === expectedMode &&
-    state?.transport.playing && state.transport.revision === expectedRevision && sourceFile === expectedFile;
-  if (Number.isFinite(audio.duration) && targetPosition >= audio.duration) return;
+    state?.transport.playing && state.transport.revision === expectedRevision && sharedSourceFile === expectedFile;
+  if (targetPosition >= timelineDuration()) return;
   try {
-    await waitForMedia('loadedmetadata', () => audio.readyState >= 1);
+    await prepareSharedAudio();
     if (!stillCurrent()) return;
-    const seekReady = waitForMedia('seeked', () => !audio.seeking && Math.abs(audio.currentTime - targetPosition) < 0.05);
-    audio.currentTime = Math.max(0, targetPosition);
-    await seekReady;
-    if (!stillCurrent()) return;
-    await waitForMedia('canplay', () => audio.readyState >= 3);
-    if (!stillCurrent()) return;
-    const start = async () => {
+    const timing = sharedAudio.schedule({ serverTimeMs: scheduledAtMs, clockOffsetMs: offsetMs, offsetSec: targetPosition });
+    if (!timing) return;
+    lastStartTiming = { revision: expectedRevision, scheduledAtMs,
+      requestedAtMs: Date.now() + offsetMs, playingAtMs: scheduledAtMs };
+    countdownUntilMs = scheduledAtMs;
+    audio.muted = true;
+    try { audio.currentTime = Math.max(0, targetPosition); } catch {}
+    clearTimeout(startTimer);
+    const startVideo = async () => {
       if (!stillCurrent()) return;
       countdownUntilMs = null;
       render();
       try {
-        lastStartTiming = { revision: expectedRevision, scheduledAtMs,
-          requestedAtMs: Date.now() + offsetMs, playingAtMs: null };
-        if (cloud && !isSolo()) pendingStartAlignment = { revision: expectedRevision, file: expectedFile };
         await audio.play();
         if (!stillCurrent()) audio.pause();
-      } catch { showToast('소리를 들으려면 ‘연습 참여’를 다시 눌러 주세요.'); }
+      } catch {}
     };
-    startTimer = setTimeout(start, Math.max(0, scheduledAtMs - (Date.now() + offsetMs)));
+    startTimer = setTimeout(startVideo, Math.max(0, scheduledAtMs - (Date.now() + offsetMs)));
   } catch { showToast('소리를 들으려면 ‘연습 참여’를 다시 눌러 주세요.'); }
 }
 function syncAudio() {
   const sourceChanged = prepareAudio();
-  if (isSolo()) return;
+  if (isSolo()) {
+    sharedAudio.stop();
+    audio.muted = false;
+    return;
+  }
   if (!state) return;
   const t = state.transport;
-  if (!joined || !sourceFile || !t.playing || (cloud && !state.conductorParticipating)) {
-    pendingStartAlignment = null;
+  const now = Date.now() + offsetMs;
+  const scheduledStop = joined && !!sharedSourceFile && !t.playing &&
+    Number.isFinite(t.stopAtMs) && t.stopAtMs > now && (!cloud || state.conductorParticipating);
+  if (scheduledStop) {
+    if (t.revision !== lastRevision || sourceChanged) {
+      clearTimeout(startTimer);
+      countdownUntilMs = null;
+      sharedAudio.scheduleStop({ serverTimeMs: t.stopAtMs, clockOffsetMs: offsetMs });
+      startTimer = setTimeout(() => audio.pause(), Math.max(0, t.stopAtMs - (Date.now() + offsetMs)));
+    }
+    lastRevision = t.revision;
+    return;
+  }
+  if (!joined || !sharedSourceFile || !t.playing || (cloud && !state.conductorParticipating)) {
     startPlanId++;
     countdownUntilMs = null;
     clearTimeout(startTimer);
+    sharedAudio.stop();
     if (!audio.paused) audio.pause();
     if (sourceFile && audio.readyState >= 1 && !t.playing && (t.revision !== lastRevision || sourceChanged)) {
       try { audio.currentTime = t.positionSec; } catch {}
@@ -217,13 +267,13 @@ function syncAudio() {
   if (t.revision !== lastRevision || sourceChanged) {
     clearTimeout(startTimer);
     countdownUntilMs = null;
+    sharedAudio.stop();
     audio.pause();
-    const now = Date.now() + offsetMs;
     const scheduledAtMs = t.startAtMs > now ? t.startAtMs : now + 3000;
     const targetPosition = t.startAtMs > now ? t.positionSec :
       Math.min(timelineDuration(), t.positionSec + (scheduledAtMs - t.startAtMs) / 1000);
     countdownUntilMs = scheduledAtMs;
-    beginAudio(t.revision, sourceFile, mode, scheduledAtMs, targetPosition);
+    beginAudio(t.revision, sharedSourceFile, mode, scheduledAtMs, targetPosition);
   }
   lastRevision = t.revision;
 }
@@ -253,13 +303,14 @@ function render() {
     tab.setAttribute('aria-selected', String(active));
   }
   const track = state.tracks[part];
-  $('trackStatus').textContent = track ? '● 음원 준비 완료' : '음원 준비 전';
-  $('trackStatus').classList.toggle('ready', !!track);
+  const trackReady = solo ? !!track : !!track?.audioFile && sharedReadyFile === track.audioFile;
+  $('trackStatus').textContent = trackReady ? '● 음원 준비 완료' : (track ? '음원 준비 중' : '음원 준비 전');
+  $('trackStatus').classList.toggle('ready', trackReady);
   $('playBtn').textContent = solo ? (audio.paused ? '▶' : 'Ⅱ') : (state.transport.playing ? 'Ⅱ' : '▶');
   $('playBtn').disabled = conductor && !solo && !joined;
   $('playBtn').setAttribute('aria-label', solo ? (audio.paused ? '재생' : '일시정지') : (state.transport.playing ? '일시정지' : '재생'));
   $('joinBtn').classList.toggle('hidden', solo);
-  $('joinBtn').disabled = solo;
+  $('joinBtn').disabled = solo || !track?.audioFile;
   $('joinBtn').textContent = joined ? '✓  연습 참여 중' : '♫  연습 참여';
   $('joinBtn').classList.toggle('joined', joined);
   $('segmentCount').textContent = `${state.segments.length}개 구간`;
@@ -325,7 +376,7 @@ function tick() {
   if (!state) return;
   if (cloud && !isSolo() && state.conductorParticipating && state.leaseUntilMs <= Date.now() + offsetMs) {
     state.transport = { playing: false, positionSec: Math.min(timelineDuration(), projectedPosition()),
-      startAtMs: null, revision: state.transport.revision };
+      startAtMs: null, stopAtMs: null, revision: state.transport.revision };
     state.conductorParticipating = false;
     syncAudio(); render();
   }
@@ -340,22 +391,54 @@ function tick() {
   if (cloud && !isSolo() && state.role === 'conductor' && joined && state.transport.playing && pos >= duration) {
     if (!endingRequested) { endingRequested = true; send({ type: 'pause' }); }
   } else endingRequested = false;
+  if (!isSolo() && joined && state.transport.playing && Date.now() + offsetMs >= state.transport.startAtMs && audio.readyState >= 1) {
+    audio.muted = true;
+    if (Math.abs(audio.currentTime - pos) > 0.3) {
+      try { audio.currentTime = pos; } catch {}
+    }
+    if (audio.paused) audio.play().catch(() => {});
+  }
   const pct = Math.max(0, Math.min(100, pos / duration * 100));
   $('timelineProgress').style.width = `${pct}%`; $('timelineThumb').style.left = `${pct}%`;
   $('currentTime').textContent = formatTime(pos);
   $('timeline').setAttribute('aria-valuenow', String(Math.floor(pos)));
   $('timeline').setAttribute('aria-valuemax', String(Math.floor(duration)));
   if (syncDebug && syncDebugBox) {
-    const difference = audio.currentTime - pos;
+    const diagnostics = sharedAudio.getDiagnostics();
+    const devicePosition = isSolo() ? audio.currentTime : diagnostics.audiblePosition;
+    const difference = Number.isFinite(devicePosition) ? devicePosition - pos : null;
     const startDelay = lastStartTiming?.revision === state.transport.revision && lastStartTiming.playingAtMs !== null ?
       `${Math.round(lastStartTiming.playingAtMs - lastStartTiming.scheduledAtMs)}ms` : '-';
-    syncDebugBox.textContent = `서버 기준 ${pos.toFixed(2)}초\n이 기기 음원 ${audio.currentTime.toFixed(2)}초\n차이 ${difference.toFixed(2)}초\n시작 지연 ${startDelay}\n상태 ${audio.paused ? '정지' : '재생'} / ready ${audio.readyState}\n마지막 이벤트 ${lastMediaEvent}\n명령 버전 ${state.transport.revision}\n시계 보정 ${offsetMs.toFixed(0)}ms`;
+    syncDebugBox.textContent = `서버 기준 ${pos.toFixed(2)}초\n이 기기 음원 ${Number.isFinite(devicePosition) ? devicePosition.toFixed(2) : '-'}초\n차이 ${difference === null ? '-' : difference.toFixed(2) + '초'}\n시작 지연 ${startDelay}\n상태 ${isSolo() ? (audio.paused ? '정지' : '재생') : diagnostics.state}\nbase/output ${diagnostics.baseLatency ?? '-'} / ${diagnostics.outputLatency ?? '-'}\n마지막 이벤트 ${lastMediaEvent}\n명령 버전 ${state.transport.revision}\n시계 보정 ${offsetMs.toFixed(0)}ms`;
   }
 }
 
 $('sharedMode').addEventListener('click', () => setMode('shared'));
 $('soloMode').addEventListener('click', () => setMode('solo'));
-function setMode(nextMode) { if (nextMode !== 'solo' || mode === nextMode) return; const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing; const position = isSolo() ? audio.currentTime : projectedPosition(); mode = nextMode; localStorage.setItem('gospel-mode', mode); syncConductorParticipation(); audio.pause(); if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} } render(); if (joined && wasPlaying) audio.play().catch(() => showToast('소리를 들으려면 연습 참여를 눌러 주세요.')); }
+async function setMode(nextMode) {
+  if (!['shared', 'solo'].includes(nextMode) || mode === nextMode) return;
+  const wasPlaying = isSolo() ? !audio.paused : state?.transport.playing;
+  const position = isSolo() ? audio.currentTime : projectedPosition();
+  if (!isSolo() && joined) {
+    joined = false;
+    syncConductorParticipation();
+  }
+  audio.pause();
+  sharedAudio.stop();
+  mode = nextMode;
+  if (!isSolo()) joined = false;
+  localStorage.setItem('gospel-mode', mode);
+  audio.muted = !isSolo();
+  if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} }
+  prepareAudio();
+  render();
+  syncAudio();
+  if (isSolo() && wasPlaying) audio.play().catch(() => showToast('재생 버튼을 다시 눌러 주세요.'));
+  if (!isSolo()) {
+    try { await sharedAudio.unlock(); await prepareSharedAudio(); }
+    catch (error) { showToast(error.message || '공동 재생 음원을 준비하지 못했습니다.'); }
+  }
+}
 document.querySelectorAll('.part-tab').forEach(tab => tab.addEventListener('click', () => {
   part = tab.dataset.part; localStorage.setItem('gospel-part', part); render(); syncAudio();
   if (!state?.tracks?.[part]) showToast('이 파트의 음원이 아직 없습니다.');
@@ -365,33 +448,34 @@ $('joinBtn').addEventListener('click', async () => {
     joined = false;
     syncConductorParticipation();
     clearTimeout(startTimer);
+    sharedAudio.stop();
     audio.pause();
     render();
     showToast('연습 참여를 해제했습니다. 소리가 꺼졌습니다.');
     return;
   }
+  try {
+    await sharedAudio.unlock();
+    await prepareSharedAudio();
+  } catch (error) {
+    return showToast(error.message || '공동 재생 음원을 준비하지 못했습니다.');
+  }
   joined = true; syncConductorParticipation(); render();
   if (cloud && !isSolo()) {
+    try { offsetMs = await cloud.measureClock(); } catch (error) { showToast(error.message); }
     lastRevision = -1;
+    try { await cloud.refresh(); } catch (error) { showToast(error.message); }
     syncAudio();
-    cloud.measureClock().then(value => { offsetMs = value; }).catch(error => showToast(error.message));
-    cloud.refresh().catch(error => showToast(error.message));
     showToast('연습에 참여했습니다. 파트를 선택해 들어 보세요.');
     return;
   }
-  if (sourceFile) {
-    if (state?.transport.playing && state.transport.startAtMs <= Date.now() + offsetMs) await beginAudio();
-    else {
-      const oldMuted = audio.muted; audio.muted = true;
-      try { await audio.play(); audio.pause(); } catch {}
-      audio.muted = oldMuted;
-      syncAudio();
-    }
-  }
+  lastRevision = -1;
+  syncAudio();
   showToast('연습에 참여했습니다. 파트를 선택해 들어 보세요.');
 });
 $('volumeControl').addEventListener('input', event => {
   audio.volume = Number(event.target.value);
+  sharedAudio.setVolume(audio.volume);
   $('volumeValue').textContent = Math.round(audio.volume * 100) + '%';
 });
 $('playBtn').addEventListener('click', async () => {
@@ -423,6 +507,7 @@ document.addEventListener('keydown', event => {
   if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
     event.preventDefault();
     audio.volume = Math.max(0, Math.min(1, Math.round((audio.volume + (event.key === 'ArrowUp' ? 0.05 : -0.05)) * 100) / 100));
+    sharedAudio.setVolume(audio.volume);
     $('volumeControl').value = String(audio.volume);
     $('volumeValue').textContent = Math.round(audio.volume * 100) + '%';
     return;
@@ -437,18 +522,9 @@ audio.addEventListener('play', render);
 audio.addEventListener('pause', render);
 audio.addEventListener('ended', render);
 audio.addEventListener('playing', () => {
+  if (!isSolo()) return;
   if (lastStartTiming?.revision === state?.transport.revision && lastStartTiming.playingAtMs === null)
     lastStartTiming.playingAtMs = Date.now() + offsetMs;
-  const pending = pendingStartAlignment;
-  if (!pending || !cloud || !joined || isSolo() || !state?.transport.playing ||
-      pending.revision !== state.transport.revision || pending.file !== sourceFile) return;
-  pendingStartAlignment = null;
-  // Mobile playback may begin after play() because the file still needs to
-  // buffer. Correct once when sound actually starts, then leave it alone.
-  const expected = Math.min(timelineDuration(), projectedPosition());
-  if (Math.abs(audio.currentTime - expected) > 0.3) {
-    try { audio.currentTime = expected; } catch {}
-  }
 });
 if (syncDebug) {
   syncDebugBox = document.createElement('pre');
@@ -487,14 +563,14 @@ $('loginForm').addEventListener('submit', async event => {
 $('logout').addEventListener('click', async () => {
   try {
     if (cloud) await cloud.logout(); else await fetch('/api/logout', { method: 'POST' });
-    joined = false; audio.pause(); connect(); showToast('로그아웃했습니다.');
+    joined = false; sharedAudio.stop(); audio.pause(); connect(); showToast('로그아웃했습니다.');
   } catch (error) { showToast(error.message); }
 });
 for (const [buttonId, field] of [['captureStart', 'startSec'], ['captureEnd', 'endSec']]) {
   $(buttonId).addEventListener('click', () => {
     if (state?.role !== 'conductor') return;
-    if (!audio.paused) return showToast('음악을 일시정지한 뒤 기록해 주세요.');
-    segmentDraft[field] = Math.max(0, Math.min(timelineDuration(), audio.currentTime));
+    if (isSolo() ? !audio.paused : state?.transport.playing) return showToast('음악을 일시정지한 뒤 기록해 주세요.');
+    segmentDraft[field] = Math.max(0, Math.min(timelineDuration(), displayedPosition()));
     updateDraftView();
   });
 }
