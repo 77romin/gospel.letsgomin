@@ -36,6 +36,10 @@ test('conductor controls shared state while listeners remain read-only', async t
     await new Promise(resolve => setTimeout(resolve, 75));
   }
   assert.equal(ready, true, 'server started');
+  const page = await (await fetch(base)).text();
+  assert.match(page, /id="practiceLock"/);
+  assert.match(page, /id="joinOverlayBtn"/);
+  assert.match(page, /id="joinBtn">연습 나가기<\/button>/);
   const videoTrack = await fetch(`${base}/media/video/navigator-chorus.mp4`, { headers: { range: 'bytes=0-43' } });
   assert.equal(videoTrack.status, 206);
   assert.equal((await videoTrack.arrayBuffer()).byteLength, 44);

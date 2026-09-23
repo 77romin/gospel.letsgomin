@@ -332,15 +332,19 @@ function render() {
   }
   const track = state.tracks[part];
   const trackReady = solo ? !!track : !!track?.audioFile && sharedReadyFile === track.audioFile;
+  const sharedLocked = !solo && !joined;
   $('trackStatus').textContent = trackReady ? '● 음원 준비 완료' : (track ? '음원 준비 중' : '음원 준비 전');
   $('trackStatus').classList.toggle('ready', trackReady);
+  $('playerPanel').classList.toggle('shared-locked', sharedLocked);
+  $('practiceLock').classList.toggle('hidden', !sharedLocked);
+  $('practiceContent').inert = sharedLocked;
+  $('practiceContent').setAttribute('aria-hidden', String(sharedLocked));
   $('playBtn').textContent = solo ? (audio.paused ? '▶' : 'Ⅱ') : (state.transport.playing ? 'Ⅱ' : '▶');
   $('playBtn').disabled = conductor && !solo && !joined;
   $('playBtn').setAttribute('aria-label', solo ? (audio.paused ? '재생' : '일시정지') : (state.transport.playing ? '일시정지' : '재생'));
-  $('joinBtn').classList.toggle('hidden', solo);
-  $('joinBtn').disabled = solo || !track?.audioFile;
-  $('joinBtn').textContent = joined ? '✓  연습 참여 중' : '♫  연습 참여';
-  $('joinBtn').classList.toggle('joined', joined);
+  $('joinBtn').classList.toggle('hidden', solo || !joined);
+  $('joinBtn').disabled = solo || !joined;
+  $('joinOverlayBtn').disabled = solo || !track?.audioFile;
   $('segmentCount').textContent = `${state.segments.length}개 구간`;
   renderSegments(); renderTimeline();
 }
@@ -471,7 +475,7 @@ document.querySelectorAll('.part-tab').forEach(tab => tab.addEventListener('clic
   part = tab.dataset.part; localStorage.setItem('gospel-part', part); render(); syncAudio();
   if (!state?.tracks?.[part]) showToast('이 파트의 음원이 아직 없습니다.');
 }));
-$('joinBtn').addEventListener('click', async () => {
+async function togglePracticeParticipation() {
   if (joined) {
     joined = false;
     syncConductorParticipation();
@@ -479,7 +483,7 @@ $('joinBtn').addEventListener('click', async () => {
     sharedAudio.stop();
     audio.pause();
     render();
-    showToast('연습 참여를 해제했습니다. 소리가 꺼졌습니다.');
+    showToast('연습에서 나왔습니다. 소리가 꺼졌습니다.');
     return;
   }
   try {
@@ -500,7 +504,9 @@ $('joinBtn').addEventListener('click', async () => {
   lastRevision = -1;
   syncAudio();
   showToast('연습에 참여했습니다. 파트를 선택해 들어 보세요.');
-});
+}
+$('joinBtn').addEventListener('click', togglePracticeParticipation);
+$('joinOverlayBtn').addEventListener('click', togglePracticeParticipation);
 $('volumeControl').addEventListener('input', event => {
   audio.volume = Number(event.target.value);
   sharedAudio.setVolume(audio.volume);
