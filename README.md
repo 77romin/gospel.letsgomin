@@ -37,10 +37,32 @@
 
 ## 화면 캡처
 
+### 개인 연습 화면 (Desktop)
+<img src="docs/screenshots/practice-desktop.png" width="300" />
+- 합창 / 4개 파트(소프라노, 알토, 테너, 바리톤)을 클릭하여 해당 파트 청취
+- `혼자 연습` 모드: 개인이 음원 조절하여 연습
+- `같이 연습` 모드: 지휘자가 음원 조절하면 연습에 참가한 성가대원은 각자 파트를 클릭하여 동시 청취
+- 연습 구간은 지휘자가 설정할 수 있으며, 연습 구간 클릭시 해당 구간의 시작지점으로 이동
+
+### 개인 연습 화면 (Mobile)
+<img src="docs/screenshots/practice-mobile.png" width="300" />
+- 모바일에서도 동일하게 청취 / 조작 가능
+
+### 지휘자 연습 구간 설정 화면
+<img src="docs/screenshots/conductor-segments.png" width="300" />
+- 지휘자가 연습구간 설정시 구간 시작 / 종료 지점에서 멈추고 해당 버튼을 클릭하면 등록되며, 구간 이름 및 색상 설정 가능
+- 기 설정한 구간 수정 / 삭제 가능
+
+### 영상 보기 화면 (Video Open)
+<img src="docs/screenshots/video-open.png" width="300" />
+- `Show Video` 토글 버튼을 이용하여 활성/비활성화 가능
+
+<!---
 ![데스크톱 개인 연습 화면](docs/screenshots/practice-desktop.png)
 ![모바일 개인 연습 화면](docs/screenshots/practice-mobile.png)
 ![지휘자 연습 구간 설정 화면](docs/screenshots/conductor-segments.png)
 ![영상 보기 화면](docs/screenshots/video-open.png)
+--->
 
 ## 로컬 실행
 
