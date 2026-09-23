@@ -10,7 +10,10 @@
 <body>
   <div class="site-shell">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="Gospel 홈"><span class="brand-mark">✦</span><span>GOSPEL<span class="brand-dot">.</span><small>LET'S GO MIN</small></span></a>
+      <div class="brand-nav">
+        <a class="brand" href="/" aria-label="Gospel 홈"><span class="brand-mark">✦</span><span>GOSPEL<span class="brand-dot">.</span><small>LET'S GO MIN</small></span></a>
+        <nav class="mode-switch" aria-label="연습 모드"><button id="soloMode" class="mode-button active" type="button" aria-pressed="true">혼자 연습</button><button id="sharedMode" class="mode-button" type="button" aria-pressed="false">같이 연습</button></nav>
+      </div>
       <div class="top-actions"><span class="connection" id="connection"><i></i>연결 중</span><button class="plain-button" id="loginOpen">지휘자 로그인</button><button class="plain-button hidden" id="logout">로그아웃</button></div>
     </header>
 
@@ -27,7 +30,6 @@
           <div class="role-pill" id="rolePill">● 합창단원</div>
         </div>
 
-        <div class="mode-switch" role="group" aria-label="연습 모드"><button id="sharedMode" class="mode-button" type="button">같이 연습</button><button id="soloMode" class="mode-button active" type="button">혼자 연습</button></div>
         <div class="part-tabs" id="partTabs" role="tablist" aria-label="연습할 파트">
           <button class="part-tab active" data-part="choir" role="tab" aria-selected="true"><svg class="tab-icon choir-icon" viewBox="0 0 64 32" aria-hidden="true"><circle cx="10" cy="8" r="3.5"/><path d="M4 28c.4-6 2.2-10 6-10s5.6 4 6 10Z"/><path d="M6 9c0-5 8-5 8 0v5H6Z"/><circle cx="24" cy="8" r="3.5"/><path d="M18 28c.4-6 2.2-10 6-10s5.6 4 6 10Z"/><path d="M20 9c0-5 8-5 8 0v5h-2v-4c-2 2-4 2-6 0v4h-2Z"/><circle cx="40" cy="8" r="3.5"/><path d="M33 28c.5-6 2.8-10 7-10s6.5 4 7 10Z"/><path d="M36 6c1-3 7-3 8 0-2-1-6-1-8 0Z"/><circle cx="54" cy="8" r="3.5"/><path d="M47 28c.5-6 2.8-10 7-10s6.5 4 7 10Z"/><path d="M50 6c1-3 7-3 8 0-2-1-6-1-8 0Z"/></svg><span>합창</span><small>ALL VOICES</small></button>
           <button class="part-tab" data-part="soprano" role="tab" aria-selected="false"><svg class="tab-icon woman-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="8" r="4.5"/><path d="M9 9c0-6 3-8 7-8s7 2 7 8v8h-3v-7c-2 2-6 2-8 0v7H9Z"/><path d="M7 30c.6-7 3.2-12 9-12s8.4 5 9 12Z"/><path d="M12 17h8l-1 3h-6Z"/></svg><span>소프라노</span><small>SOPRANO</small></button>

@@ -5,8 +5,7 @@ const audio = $('audio');
 const sharedAudio = new SharedAudioEngine();
 const names = { choir: ['합창', 'CHOIR'], soprano: ['소프라노', 'SOPRANO'], alto: ['알토', 'ALTO'], tenor: ['테너', 'TENOR'], baritone: ['바리톤', 'BARITONE'] };
 let part = localStorage.getItem('gospel-part') || 'choir';
-let mode = localStorage.getItem('gospel-mode') === 'shared' ? 'shared' : 'solo';
-localStorage.setItem('gospel-mode', mode);
+let mode = 'solo';
 if (!names[part]) part = 'choir';
 let state = null;
 let socket = null;
@@ -323,6 +322,8 @@ function render() {
   $('timeline').classList.toggle('can-seek', conductor || solo);
   $('sharedMode').classList.toggle('active', !solo);
   $('soloMode').classList.toggle('active', solo);
+  $('sharedMode').setAttribute('aria-pressed', String(!solo));
+  $('soloMode').setAttribute('aria-pressed', String(solo));
   const selected = names[part];
   $('partName').innerHTML = `${selected[0]} <span>${selected[1]}</span>`;
   for (const tab of document.querySelectorAll('.part-tab')) {
@@ -459,7 +460,6 @@ async function setMode(nextMode) {
   sharedAudio.stop();
   mode = nextMode;
   if (!isSolo()) joined = false;
-  localStorage.setItem('gospel-mode', mode);
   audio.muted = !isSolo();
   if (Number.isFinite(position)) { try { audio.currentTime = position; } catch {} }
   prepareAudio();

@@ -40,6 +40,8 @@ test('conductor controls shared state while listeners remain read-only', async t
   assert.match(page, /id="practiceLock"/);
   assert.match(page, /id="joinOverlayBtn"/);
   assert.match(page, /id="joinBtn">연습 나가기<\/button>/);
+  assert.ok(page.indexOf('id="soloMode"') < page.indexOf('id="sharedMode"'), 'solo mode is listed before shared mode');
+  assert.ok(page.indexOf('id="soloMode"') < page.indexOf('class="top-actions"'), 'practice modes are placed beside the logo');
   const videoTrack = await fetch(`${base}/media/video/navigator-chorus.mp4`, { headers: { range: 'bytes=0-43' } });
   assert.equal(videoTrack.status, 206);
   assert.equal((await videoTrack.arrayBuffer()).byteLength, 44);
