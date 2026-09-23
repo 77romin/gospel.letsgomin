@@ -24,7 +24,7 @@ npm run build
 
 ## 3. GitHub에 코드 반영
 
-변경 사항을 `main` 브랜치에 반영하고 `git push origin main` 합니다. 음원 다섯 파일이 저장소에 포함돼 있습니다.
+먼저 `dev` 브랜치에서 자동 테스트와 MacBook·iPhone 실기기 테스트를 마칩니다. 결과가 만족스러울 때만 `main`에 병합하고 `git push origin main` 합니다. 영상과 별도 디코딩용 음원이 저장소에 포함돼 있습니다.
 
 ## 4. Vercel 프로젝트 만들기
 
@@ -46,7 +46,7 @@ npm run build
 
 ## 운영상 주의
 
-현재 공개 화면은 개인 연습 전용입니다. 공동 재생 UI는 모바일 동기화 품질 문제로 숨겨져 있습니다. 나중에 공동 재생을 다시 시험하면서 3초 재생 준비 시간을 적용하려면 Supabase **SQL Editor → New query**에 [`supabase/three-second-countdown.sql`](supabase/three-second-countdown.sql) 전체 내용을 붙여 넣고 실행합니다. 이 파일은 기존 곡과 연습 구간을 유지하면서 공동 재생 명령의 시작 시각만 변경합니다. 개인 연습만 배포할 때는 실행할 필요가 없습니다.
+기존 Supabase 프로젝트에서 같이 연습을 시험하기 전에 **SQL Editor → New query**에 [`supabase/three-second-countdown.sql`](supabase/three-second-countdown.sql) 전체 내용을 붙여 넣고 실행합니다. 이 파일은 기존 곡과 연습 구간을 유지하면서 재생·정지·재생 중 위치 이동을 3초 뒤 공통 시각에 실행하도록 상태와 함수를 갱신합니다.
 
 - Supabase Free 프로젝트는 1주일간 활동이 없으면 일시 중지될 수 있습니다.
 - 공동 재생을 다시 켤 경우 지휘자가 참여 해제·혼자 연습 전환·로그아웃을 하면 공동 재생이 즉시 멈춥니다. 인터넷 연결이 갑자기 끊기면 최대 약 30초 후 참여 기한이 만료되어 멈춥니다.

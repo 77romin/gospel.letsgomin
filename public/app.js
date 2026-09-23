@@ -20,6 +20,7 @@ let sourceFile = null;
 let sharedSourceFile = null;
 let sharedReadyFile = null;
 let sharedLoadPromise = null;
+let clockMeasurePromise = null;
 let lastRevision = -1;
 let toastTimer = null;
 let videoOpen = true;
@@ -107,21 +108,48 @@ function setConnection(connected) {
   $('connection').lastChild.textContent = connected ? '실시간 연결됨' : '연결 끊김';
 }
 async function measureClock() {
-  if (cloud) {
-    try { offsetMs = await cloud.measureClock(); } catch (error) { showToast(error.message); }
-    return;
-  }
-  const samples = [];
-  for (let i = 0; i < 5; i++) {
-    try {
+  if (clockMeasurePromise) return clockMeasurePromise;
+  clockMeasurePromise = (async () => {
+    if (cloud) {
+      offsetMs = await cloud.measureClock();
+      return offsetMs;
+    }
+    const samples = [];
+    for (let i = 0; i < 5; i++) {
       const before = Date.now();
       const response = await fetch('/api/time', { cache: 'no-store' });
+      if (!response.ok) throw new Error('서버 시계를 확인하지 못했습니다.');
       const { serverTimeMs } = await response.json();
       const after = Date.now();
       samples.push({ delay: after - before, offset: serverTimeMs - (before + after) / 2 });
-    } catch { break; }
+    }
+    offsetMs = samples.sort((a, b) => a.delay - b.delay)[0].offset;
+    return offsetMs;
+  })();
+  try { return await clockMeasurePromise; }
+  finally { clockMeasurePromise = null; }
+}
+
+async function restoreSharedSession() {
+  if (document.visibilityState !== 'visible' || isSolo() || !joined) return;
+  const wasInterrupted = sharedAudio.getDiagnostics().state !== 'running';
+  try {
+    await measureClock();
+    if (cloud) await cloud.refresh();
+    if (wasInterrupted) await sharedAudio.unlock();
+  } catch (error) {
+    if (wasInterrupted) {
+      joined = false;
+      syncConductorParticipation();
+      render();
+      showToast('오디오 연결이 중단됐습니다. 연습 참여를 다시 눌러 주세요.');
+    }
+    return;
   }
-  if (samples.length) offsetMs = samples.sort((a, b) => a.delay - b.delay)[0].offset;
+  if (wasInterrupted) {
+    lastRevision = -1;
+    syncAudio();
+  }
 }
 function connect() {
   if (cloud) return cloud.connect().catch(error => { setConnection(false); showToast(error.message); });
@@ -585,6 +613,11 @@ $('segmentForm').addEventListener('submit', event => {
   resetDraft();
 });
 
-await measureClock();
+try { await measureClock(); } catch (error) { showToast(error.message); }
 connect();
 setInterval(tick, 100);
+setInterval(() => {
+  if (!isSolo() && joined && document.visibilityState === 'visible') measureClock().catch(() => {});
+}, 60_000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') restoreSharedSession(); });
+window.addEventListener('online', restoreSharedSession);
