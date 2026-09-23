@@ -2,11 +2,41 @@
   "id": "navigator",
   "title": "항해자",
   "tracks": {
-    "choir": { "file": "/audio/navigator-chorus.mp4", "name": "합창", "durationSec": 258.6 },
-    "soprano": { "file": "/audio/navigator-soprano.mp4", "name": "소프라노", "durationSec": 258.6 },
-    "alto": { "file": "/audio/navigator-alto.mp4", "name": "알토", "durationSec": 258.6 },
-    "tenor": { "file": "/audio/navigator-tenor.mp4", "name": "테너", "durationSec": 258.6 },
-    "baritone": { "file": "/audio/navigator-baritone.mp4", "name": "바리톤", "durationSec": 258.6 }
+    "choir": {
+      "file": "/media/video/navigator-chorus.mp4",
+      "audioFile": "/media/audio/navigator-chorus.mp3",
+      "videoFile": "/media/video/navigator-chorus.mp4",
+      "name": "합창",
+      "durationSec": 258.6
+    },
+    "soprano": {
+      "file": "/media/video/navigator-soprano.mp4",
+      "audioFile": "/media/audio/navigator-soprano.mp3",
+      "videoFile": "/media/video/navigator-soprano.mp4",
+      "name": "소프라노",
+      "durationSec": 258.6
+    },
+    "alto": {
+      "file": "/media/video/navigator-alto.mp4",
+      "audioFile": "/media/audio/navigator-alto.mp3",
+      "videoFile": "/media/video/navigator-alto.mp4",
+      "name": "알토",
+      "durationSec": 258.6
+    },
+    "tenor": {
+      "file": "/media/video/navigator-tenor.mp4",
+      "audioFile": "/media/audio/navigator-tenor.mp3",
+      "videoFile": "/media/video/navigator-tenor.mp4",
+      "name": "테너",
+      "durationSec": 258.6
+    },
+    "baritone": {
+      "file": "/media/video/navigator-baritone.mp4",
+      "audioFile": "/media/audio/navigator-baritone.mp3",
+      "videoFile": "/media/video/navigator-baritone.mp4",
+      "name": "바리톤",
+      "durationSec": 258.6
+    }
   },
   "segments": []
 }

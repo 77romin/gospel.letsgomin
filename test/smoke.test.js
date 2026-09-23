@@ -36,9 +36,12 @@ test('conductor controls shared state while listeners remain read-only', async t
     await new Promise(resolve => setTimeout(resolve, 75));
   }
   assert.equal(ready, true, 'server started');
-  const track = await fetch(`${base}/audio/navigator-chorus.mp4`, { headers: { range: 'bytes=0-43' } });
-  assert.equal(track.status, 206);
-  assert.equal((await track.arrayBuffer()).byteLength, 44);
+  const videoTrack = await fetch(`${base}/media/video/navigator-chorus.mp4`, { headers: { range: 'bytes=0-43' } });
+  assert.equal(videoTrack.status, 206);
+  assert.equal((await videoTrack.arrayBuffer()).byteLength, 44);
+  const audioTrack = await fetch(`${base}/media/audio/navigator-chorus.mp3`, { headers: { range: 'bytes=0-43' } });
+  assert.equal(audioTrack.status, 206);
+  assert.equal((await audioTrack.arrayBuffer()).byteLength, 44);
   const deniedUpload = await fetch(`${base}/api/upload/choir`, { method: 'PUT' });
   assert.equal(deniedUpload.status, 404, 'the page no longer has an upload API');
   const login = await fetch(`${base}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'conductor', password: 'test-secret' }) });
@@ -48,7 +51,9 @@ test('conductor controls shared state while listeners remain read-only', async t
   const { ws: conductor, state: conductorState } = await connect(base.replace('http', 'ws') + '/ws', cookie);
   t.after(() => { listener.close(); conductor.close(); });
   assert.equal(listenerState.role, 'listener'); assert.equal(conductorState.role, 'conductor');
-  assert.equal(conductorState.tracks.choir.file, '/audio/navigator-chorus.mp4');
+  assert.equal(conductorState.tracks.choir.file, '/media/video/navigator-chorus.mp4');
+  assert.equal(conductorState.tracks.choir.audioFile, '/media/audio/navigator-chorus.mp3');
+  assert.equal(conductorState.tracks.choir.videoFile, '/media/video/navigator-chorus.mp4');
   listener.send(JSON.stringify({ type: 'play' }));
   assert.equal((await waitForMessage(listener, data => data.type === 'error')).type, 'error');
   conductor.send(JSON.stringify({ type: 'segment:add', label: 'Test bridge', startSec: 0, endSec: 1, color: '#aabbcc' }));

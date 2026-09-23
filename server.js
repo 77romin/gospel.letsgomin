@@ -26,7 +26,9 @@ if (typeof catalog.id !== 'string' || !catalog.id || typeof catalog.title !== 's
 const partNames = ['choir', 'soprano', 'alto', 'tenor', 'baritone'];
 if (partNames.some(part => !catalog.tracks[part])) throw new Error('다섯 파트의 음원을 모두 tracks.json에 등록해 주세요.');
 for (const track of partNames.map(part => catalog.tracks[part])) {
-  if (!track || typeof track.file !== 'string' || !/^\/audio\/[a-zA-Z0-9._-]+\.(mp3|m4a|mp4|wav|ogg|webm)$/.test(track.file)) throw new Error('음원 경로는 /audio/ 아래 파일이어야 합니다.');
+  if (!track || typeof track.file !== 'string' || !/^\/media\/video\/[a-zA-Z0-9._-]+\.mp4$/.test(track.file)) throw new Error('영상 경로는 /media/video/ 아래 MP4 파일이어야 합니다.');
+  if (typeof track.audioFile !== 'string' || !/^\/media\/audio\/[a-zA-Z0-9._-]+\.(mp3|m4a|wav|ogg|webm)$/.test(track.audioFile)) throw new Error('음원 경로는 /media/audio/ 아래 파일이어야 합니다.');
+  if (typeof track.videoFile !== 'string' || !/^\/media\/video\/[a-zA-Z0-9._-]+\.mp4$/.test(track.videoFile)) throw new Error('영상 경로는 /media/video/ 아래 MP4 파일이어야 합니다.');
   if (typeof track.durationSec !== 'number' || !Number.isFinite(track.durationSec) || track.durationSec <= 0) throw new Error('각 파트의 durationSec를 초 단위로 입력해 주세요.');
 }
 if (partNames.some(part => Math.abs(catalog.tracks[part].durationSec - catalog.tracks.choir.durationSec) > 0.1)) throw new Error('다섯 파트의 길이를 같게 맞춰 주세요.');
