@@ -37,14 +37,10 @@
 
 ## 화면 캡처
 
-캡처를 직접 추가할 수 있도록 [`docs/screenshots`](docs/screenshots/README.md)에 파일 이름과 삽입 방법을 적어 두었습니다. 이미지를 넣기 전에는 깨진 이미지가 표시되지 않습니다.
-
-<!-- 캡처를 추가한 뒤 아래 이미지 줄을 주석 밖으로 옮겨 주세요.
 ![데스크톱 개인 연습 화면](docs/screenshots/practice-desktop.png)
 ![모바일 개인 연습 화면](docs/screenshots/practice-mobile.png)
 ![지휘자 연습 구간 설정 화면](docs/screenshots/conductor-segments.png)
 ![영상 보기 화면](docs/screenshots/video-open.png)
--->
 
 ## 로컬 실행
 
