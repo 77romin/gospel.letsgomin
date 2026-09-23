@@ -50,6 +50,33 @@ function formatTime(sec) {
   if (!Number.isFinite(sec) || sec < 0) sec = 0;
   return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 }
+function sharedPlaybackSignal() {
+  if (!state || isSolo() || !joined) return null;
+  const now = Date.now() + offsetMs;
+  const transport = state.transport;
+  const preparing = transport.playing && Number.isFinite(transport.startAtMs) && transport.startAtMs > now;
+  const stopping = !transport.playing && Number.isFinite(transport.stopAtMs) && transport.stopAtMs > now;
+  if (preparing) {
+    const remainingMs = transport.startAtMs - now;
+    if (remainingMs > sharedActionLeadMs / 2) return { phase: 'red', label: '재생 준비' };
+    return { phase: 'yellow', label: '곧 재생' };
+  }
+  if (stopping) return { phase: 'green', label: '정지 준비' };
+  return transport.playing ? { phase: 'green', label: '재생 중' } : { phase: 'red', label: '정지' };
+}
+function updatePlaybackSignal() {
+  const signal = sharedPlaybackSignal();
+  const playButton = $('playBtn');
+  const listenerNotice = $('listenerNotice');
+  for (const phase of ['red', 'yellow', 'green']) {
+    playButton.classList.toggle(`signal-${phase}`, signal?.phase === phase);
+    listenerNotice.classList.toggle(`signal-${phase}`, signal?.phase === phase);
+  }
+  if (!signal) return;
+  if (listenerNotice.textContent !== signal.label) listenerNotice.textContent = signal.label;
+  const preparing = state.transport.playing && state.transport.startAtMs > Date.now() + offsetMs;
+  playButton.setAttribute('aria-label', preparing ? `${signal.label}, 취소` : signal.label === '재생 중' ? '일시정지' : '재생');
+}
 function showToast(message) {
   const box = $('toast'); box.textContent = message; box.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => box.classList.remove('show'), 3500);
@@ -344,6 +371,7 @@ function render() {
   $('playBtn').textContent = solo ? (audio.paused ? '▶' : 'Ⅱ') : (state.transport.playing ? 'Ⅱ' : '▶');
   $('playBtn').disabled = conductor && !solo && !joined;
   $('playBtn').setAttribute('aria-label', solo ? (audio.paused ? '재생' : '일시정지') : (state.transport.playing ? '일시정지' : '재생'));
+  updatePlaybackSignal();
   $('joinBtn').classList.toggle('hidden', solo || !joined);
   $('joinBtn').disabled = solo || !joined;
   $('joinOverlayBtn').disabled = solo || !track?.audioFile;
@@ -415,13 +443,7 @@ function tick() {
     syncAudio(); render();
   }
   const pos = displayedPosition(); const duration = timelineDuration();
-  if (countdownUntilMs && joined && !isSolo() && audio.paused) {
-    const remaining = Math.ceil((countdownUntilMs - Date.now() - offsetMs) / 1000);
-    if (remaining > 0) {
-      if (state.role === 'conductor') $('playBtn').textContent = String(remaining);
-      else $('listenerNotice').textContent = `${remaining}초 뒤 재생`;
-    }
-  }
+  updatePlaybackSignal();
   if (cloud && !isSolo() && state.role === 'conductor' && joined && state.transport.playing && pos >= duration) {
     if (!endingRequested) { endingRequested = true; send({ type: 'pause' }); }
   } else endingRequested = false;

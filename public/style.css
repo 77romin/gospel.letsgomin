@@ -57,3 +57,12 @@ button.segment-jump:focus-visible{outline:2px solid #315f54;outline-offset:3px}
 .topbar .mode-button.active:after{content:'';position:absolute;left:0;right:0;bottom:-10px;height:2px;border-radius:2px;background:#d6af77}
 @media(max-width:750px){.brand-nav{gap:15px}.topbar .mode-switch{gap:11px}.topbar .mode-button{font-size:10px;letter-spacing:0}.topbar .mode-button.active:after{bottom:-8px}.top-actions{margin-left:auto}.plain-button{padding:8px 11px;font-size:10px}}
 @media(max-width:470px){.brand{font-size:15px}.brand-mark{width:28px;height:28px}.brand small{font-size:7px}.brand-nav{gap:10px}.topbar .mode-switch{gap:8px}.topbar .mode-button{font-size:9px}.top-actions{gap:6px}.plain-button{padding:7px 9px}.connection{display:none}}
+.play-button{transition:background-color .18s ease,box-shadow .18s ease,color .18s ease}
+.play-button.signal-red,.play-button.signal-red:hover{background:#c94f4f;box-shadow:0 6px 18px #c94f4f55}
+.play-button.signal-yellow,.play-button.signal-yellow:hover{background:#e2ad32;color:#342a13;box-shadow:0 6px 18px #e2ad3255}
+.play-button.signal-green,.play-button.signal-green:hover{background:#3c9868;box-shadow:0 6px 18px #3c986855}
+.listener-notice.signal-red,.listener-notice.signal-yellow,.listener-notice.signal-green{display:inline-flex;align-items:center;gap:8px;font-weight:700}
+.listener-notice.signal-red::before,.listener-notice.signal-yellow::before,.listener-notice.signal-green::before{content:'';width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 4px #fff,0 2px 8px #263c4733}
+.listener-notice.signal-red::before{background:#c94f4f}
+.listener-notice.signal-yellow::before{background:#e2ad32}
+.listener-notice.signal-green::before{background:#3c9868}
