@@ -4,7 +4,7 @@
 
 **서비스:** https://gospel.letsgomin.com/
 
-> `dev` 브랜치에서는 Web Audio 예약 재생 기반의 **같이 연습** 모드를 검증 중입니다. 운영 `main` 반영 전 MacBook·iPhone과 유선·무선 출력 조합의 실기기 확인이 필요합니다.
+> **같이 연습**은 Web Audio 예약 재생으로 여러 기기의 시작·정지 시각을 맞춥니다. 컴퓨터와 iPhone 내장 스피커 조합은 확인했으며 Bluetooth 출력은 추가 검증 중입니다.
 
 ## 주요 기능
 
@@ -84,4 +84,4 @@ npm test
 
 곡을 바꿀 때는 `public/media/video`와 `public/media/audio`에 다섯 파트 파일을 넣고 [`public/tracks.json`](public/tracks.json)의 곡 ID·파일 경로·길이를 수정합니다. 파트 간 시작 지점과 길이를 맞춰야 합니다. 운영 데이터베이스의 곡 ID와 길이도 함께 맞춰야 하며, 자세한 주의사항은 배포 문서를 참고하세요.
 
-프로젝트를 진행하며 겪은 문제와 시도, 현재 남은 과제는 [개발 경험 정리](EXPERIENCE.md)에 기록했습니다.
+프로젝트를 진행하며 겪은 문제와 시도는 [개발 경험 정리](EXPERIENCE.md)에, 공동 재생 레이턴시의 원인·BeatSync 참고 내용·해결 구조·진단 순서는 [트러블슈팅 문서](TROUBLESHOOTING.md)에 기록했습니다.
