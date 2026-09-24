@@ -44,7 +44,7 @@ const cloud = cloudEnabled ? (await import('./cloud.js')).createCloud({
 if (cloud) {
   $('username').value = '';
   $('username').type = 'text';
-  $('username').placeholder = 'admin';
+  $('username').placeholder = '';
   $('username').previousSibling.textContent = '아이디';
 }
 
