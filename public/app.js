@@ -43,9 +43,9 @@ const cloud = cloudEnabled ? (await import('./cloud.js')).createCloud({
 }) : null;
 if (cloud) {
   $('username').value = '';
-  $('username').type = 'email';
-  $('username').placeholder = '지휘자 이메일';
-  $('username').previousSibling.textContent = '이메일';
+  $('username').type = 'text';
+  $('username').placeholder = 'admin';
+  $('username').previousSibling.textContent = '아이디';
 }
 
 function formatTime(sec) {
@@ -626,7 +626,9 @@ $('loginForm').addEventListener('submit', async event => {
   event.preventDefault(); $('loginError').textContent = '';
   try {
     if (cloud) {
-      await cloud.login($('username').value, $('password').value);
+      const loginId = $('username').value.trim();
+      const email = loginId.includes('@') ? loginId : `${loginId}@gospel.letsgomin.com`;
+      await cloud.login(email, $('password').value);
       $('loginDialog').close(); $('password').value = '';
       await connect(); showToast('지휘자로 로그인했습니다.');
       return;
