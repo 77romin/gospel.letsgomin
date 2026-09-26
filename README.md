@@ -35,34 +35,37 @@
 
 입력창을 편집하거나 로그인 창이 열려 있을 때는 방향키 단축키가 적용되지 않습니다. 영상이 없는 음원에서는 `Show Video` 버튼을 사용할 수 없습니다.
 
-## 화면 캡처
+## 화면
 
-### 개인 연습 화면 (Desktop)
-<img src="docs/screenshots/practice-desktop.png" width="300" />
-- 합창 / 4개 파트(소프라노, 알토, 테너, 바리톤)을 클릭하여 해당 파트 청취
-- `혼자 연습` 모드: 개인이 음원 조절하여 연습
-- `같이 연습` 모드: 지휘자가 음원 조절하면 연습에 참가한 성가대원은 각자 파트를 클릭하여 동시 청취
-- 연습 구간은 지휘자가 설정할 수 있으며, 연습 구간 클릭시 해당 구간의 시작지점으로 이동
+### 파트별 개인 연습
 
-### 개인 연습 화면 (Mobile)
-<img src="docs/screenshots/practice-mobile.png" width="300" />
-- 모바일에서도 동일하게 청취 / 조작 가능
+파트를 선택해 재생 위치와 볼륨을 조절하고, 지휘자가 지정한 연습 구간으로 바로 이동할 수 있습니다. 데스크톱과 모바일에서 동일한 기능을 제공합니다.
 
-### 지휘자 연습 구간 설정 화면
-<img src="docs/screenshots/conductor-segments.png" width="300" />
-- 지휘자가 연습구간 설정시 구간 시작 / 종료 지점에서 멈추고 해당 버튼을 클릭하면 등록되며, 구간 이름 및 색상 설정 가능
-- 기 설정한 구간 수정 / 삭제 가능
+<table>
+  <tr>
+    <td width="50%" align="center"><strong>Desktop</strong></td>
+    <td width="50%" align="center"><strong>Mobile</strong></td>
+  </tr>
+  <tr>
+    <td valign="top"><img src="docs/screenshots/practice-desktop.png" alt="데스크톱 개인 연습 화면" width="100%"></td>
+    <td valign="top"><img src="docs/screenshots/practice-mobile.png" alt="모바일 개인 연습 화면" width="100%"></td>
+  </tr>
+</table>
 
-### 영상 보기 화면 (Video Open)
-<img src="docs/screenshots/video-open.png" width="300" />
-- `Show Video` 토글 버튼을 이용하여 활성/비활성화 가능
+### 지휘자 도구와 악보 영상
 
-<!---
-![데스크톱 개인 연습 화면](docs/screenshots/practice-desktop.png)
-![모바일 개인 연습 화면](docs/screenshots/practice-mobile.png)
-![지휘자 연습 구간 설정 화면](docs/screenshots/conductor-segments.png)
-![영상 보기 화면](docs/screenshots/video-open.png)
---->
+지휘자는 현재 재생 위치를 기준으로 연습 구간을 만들고 이름·색상·강조·완료 상태를 관리할 수 있습니다. 악보 영상은 재생 화면에서 필요에 따라 열고 닫을 수 있습니다.
+
+<table>
+  <tr>
+    <td width="50%" align="center"><strong>연습 구간 설정</strong></td>
+    <td width="50%" align="center"><strong>악보 영상</strong></td>
+  </tr>
+  <tr>
+    <td valign="top"><img src="docs/screenshots/conductor-segments.png" alt="지휘자 연습 구간 설정 화면" width="100%"></td>
+    <td valign="top"><img src="docs/screenshots/video-open.png" alt="악보 영상이 열린 재생 화면" width="100%"></td>
+  </tr>
+</table>
 
 ## 로컬 실행
 
